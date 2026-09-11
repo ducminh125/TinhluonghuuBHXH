@@ -4,6 +4,8 @@ export const LAW_META = {
   decree: "Nghị định 158/2025/NĐ-CP",
   circular: "Thông tư 12/2025/TT-BNV",
   retirementDecree: "Nghị định 135/2020/NĐ-CP",
+  baseSalaryDecree: "Nghị định 161/2026/NĐ-CP",
+  wageRaiseCircular: "Thông tư 08/2013/TT-BNV, được sửa đổi bởi Thông tư 03/2021/TT-BNV",
   updatedAt: "2026-09-11"
 };
 

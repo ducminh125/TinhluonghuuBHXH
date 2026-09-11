@@ -5,7 +5,12 @@ import {
   pensionStartMonthFromStatutoryMonth,
   statutoryRetirementAttainmentMonth
 } from "./pension.js";
-import { calculateAverageBase, compactDuration } from "./contributions.js";
+import {
+  buildProjectedPeriods,
+  calculateAverageBase,
+  compactDuration,
+  dedupeImportedPeriods
+} from "./contributions.js";
 
 const $ = id => document.getElementById(id);
 const form = $("calculatorForm");
@@ -15,7 +20,7 @@ const rowTemplate = $("periodRowTemplate");
 const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
 
-$("lawVersion").textContent = `${LAW_META.law} · ${LAW_META.decree} · dữ liệu cập nhật ${LAW_META.updatedAt}`;
+$("lawVersion").textContent = `${LAW_META.law} · ${LAW_META.decree} · ${LAW_META.retirementDecree} · cập nhật ${LAW_META.updatedAt}`;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -33,9 +38,15 @@ function displayMonth(ym) {
 
 function valueLabel(regime, valueType) {
   if (regime === "state" && valueType === "coefficient") {
-    return { placeholder: "VD: 4.98", unit: "hệ số đóng BHXH", step: "0.01" };
+    return { placeholder: "VD: 4.98", unit: "hệ số lương", step: "0.01" };
   }
-  return { placeholder: "VD: 12000000", unit: "VND/tháng", step: "1000" };
+  if (regime === "employer") {
+    return { placeholder: "VD: 12000000", unit: "lương công việc/chức danh (VND/tháng)", step: "1000" };
+  }
+  if (regime === "voluntary") {
+    return { placeholder: "VD: 8000000", unit: "thu nhập làm căn cứ đóng (VND/tháng)", step: "1000" };
+  }
+  return { placeholder: "VD: 12000000", unit: "tổng tiền lương đóng BHXH (VND/tháng)", step: "1000" };
 }
 
 function syncPeriodRow(tr) {
@@ -43,6 +54,11 @@ function syncPeriodRow(tr) {
   const valueType = tr.querySelector('[data-field="valueType"]');
   const value = tr.querySelector('[data-field="value"]');
   const unit = tr.querySelector(".value-unit");
+  const stateAllowances = tr.querySelector(".state-allowances");
+  const vndAllowances = tr.querySelector(".vnd-allowances");
+  const vndAllowanceLabel = tr.querySelector(".vnd-allowance-label");
+  const allowanceNone = tr.querySelector(".allowance-none");
+  const allowanceDetails = tr.querySelector(".allowance-details");
 
   if (regime.value !== "state") valueType.value = "vnd";
   for (const option of valueType.options) {
@@ -53,36 +69,61 @@ function syncPeriodRow(tr) {
   value.placeholder = meta.placeholder;
   value.step = meta.step;
   unit.textContent = meta.unit;
+
+  const showState = regime.value === "state" && valueType.value === "coefficient";
+  const showVndAllowance = valueType.value === "vnd" && ["state", "employer"].includes(regime.value);
+  stateAllowances.hidden = !showState;
+  vndAllowances.hidden = !showVndAllowance;
+  if (showVndAllowance) {
+    vndAllowanceLabel.textContent = regime.value === "state"
+      ? "Phụ cấp tính đóng tách riêng (VND/tháng)"
+      : "PC + khoản bổ sung tính đóng (VND/tháng)";
+  }
+  allowanceNone.hidden = showState || showVndAllowance;
+  allowanceDetails.classList.toggle("is-empty", !showState && !showVndAllowance);
+
+  updateForecastPreview();
+}
+
+function setRowValue(tr, field, value) {
+  const el = tr.querySelector(`[data-field="${field}"]`);
+  if (el && value != null && value !== "") el.value = value;
 }
 
 function addPeriodRow(data = {}) {
   const fragment = rowTemplate.content.cloneNode(true);
   const tr = fragment.querySelector("tr");
-  const set = (field, value) => {
-    const el = tr.querySelector(`[data-field="${field}"]`);
-    if (el && value != null && value !== "") el.value = value;
-  };
 
-  set("from", data.from);
-  set("to", data.to);
-  set("regime", data.regime || "state");
-  set("valueType", data.valueType || (data.regime === "state" ? "coefficient" : "vnd"));
-  set("value", data.valueType === "coefficient" ? data.coefficient : data.amountVnd);
-  set("note", data.note);
+  setRowValue(tr, "from", data.from);
+  setRowValue(tr, "to", data.to);
+  setRowValue(tr, "regime", data.regime || "state");
+  setRowValue(tr, "valueType", data.valueType || (data.regime === "state" ? "coefficient" : "vnd"));
+  setRowValue(tr, "value", data.valueType === "coefficient" ? data.coefficient : data.amountVnd);
+  setRowValue(tr, "positionAllowanceCoeff", data.positionAllowanceCoeff ?? 0);
+  setRowValue(tr, "reservedDifferenceCoeff", data.reservedDifferenceCoeff ?? 0);
+  setRowValue(tr, "seniorityBeyondPercent", data.seniorityBeyondPercent ?? 0);
+  setRowValue(tr, "professionalSeniorityPercent", data.professionalSeniorityPercent ?? 0);
+  setRowValue(tr, "allowanceVnd", data.allowanceVnd ?? 0);
+  setRowValue(tr, "note", data.note);
 
   tr.querySelector('[data-field="regime"]').addEventListener("change", () => syncPeriodRow(tr));
   tr.querySelector('[data-field="valueType"]').addEventListener("change", () => syncPeriodRow(tr));
+  tr.querySelectorAll("input,select").forEach(el => {
+    if (!["regime", "valueType"].includes(el.dataset.field)) el.addEventListener("change", updateForecastPreview);
+  });
   tr.querySelector(".remove-row").addEventListener("click", () => {
     tr.remove();
     if (!rowsHost.children.length) addPeriodRow();
+    updateForecastPreview();
   });
 
   syncPeriodRow(tr);
   rowsHost.appendChild(fragment);
+  updateForecastPreview();
 }
 
-function getPeriods() {
-  return [...rowsHost.querySelectorAll(".period-row")].map(tr => {
+function getPeriods({ includeBlank = true } = {}) {
+  const rows = [...rowsHost.querySelectorAll(".period-row")].map(tr => {
     const get = field => tr.querySelector(`[data-field="${field}"]`)?.value ?? "";
     const regime = get("regime");
     const valueType = get("valueType");
@@ -94,9 +135,22 @@ function getPeriods() {
       valueType,
       coefficient: valueType === "coefficient" ? numericValue : null,
       amountVnd: valueType === "vnd" ? numericValue : null,
+      positionAllowanceCoeff: Number(get("positionAllowanceCoeff") || 0),
+      reservedDifferenceCoeff: Number(get("reservedDifferenceCoeff") || 0),
+      seniorityBeyondPercent: Number(get("seniorityBeyondPercent") || 0),
+      professionalSeniorityPercent: Number(get("professionalSeniorityPercent") || 0),
+      allowanceVnd: Number(get("allowanceVnd") || 0),
       note: get("note")
     };
   });
+
+  if (includeBlank) return rows;
+  return rows.filter(row => row.from || row.to || row.coefficient || row.amountVnd);
+}
+
+function getRetirementMonth() {
+  const retirementCase = $("retirementCase").value;
+  return retirementCase === "normal" ? $("statutoryRetirementMonth").value : $("actualRetirementMonth").value;
 }
 
 function updateRetirementDates({ resetSpecial = false } = {}) {
@@ -115,6 +169,7 @@ function updateRetirementDates({ resetSpecial = false } = {}) {
       ? `Mốc tuổi sớm nhất theo nhóm đã chọn: ${displayMonth(earliest)}. Điều kiện thời gian đóng vẫn phải được kiểm tra.`
       : "Trường hợp này không thể xác định chỉ từ ngày sinh; cần nhập tháng nghỉ thực tế theo hồ sơ.";
   }
+  updateForecastPreview();
 }
 
 function updateRetirementCase() {
@@ -125,35 +180,101 @@ function updateRetirementCase() {
   updateRetirementDates({ resetSpecial: true });
 }
 
+function forecastOptions() {
+  return {
+    gradeStartMonth: $("gradeStartMonth").value,
+    raiseCadenceMonths: Number($("raiseCadenceMonths").value || 0),
+    coefficientStep: Number($("coefficientStep").value || 0),
+    maxCoefficient: Number($("maxCoefficient").value || 0)
+  };
+}
+
+function latestPeriod(periods) {
+  return [...periods]
+    .filter(p => /^\d{4}-\d{2}$/.test(p.to || ""))
+    .sort((a, b) => String(b.to).localeCompare(String(a.to)))[0] || null;
+}
+
+function updateForecastPreview() {
+  const enabled = $("autoExtend").checked;
+  $("forecastConfig").hidden = !enabled;
+  if (!enabled) return;
+
+  const basePeriods = getPeriods({ includeBlank: false });
+  const retirementMonth = getRetirementMonth();
+  const latest = latestPeriod(basePeriods);
+  const coefficientMode = latest?.regime === "state" && latest?.valueType === "coefficient";
+  $("coefficientForecastFields").hidden = !coefficientMode;
+
+  if (!latest) {
+    $("forecastPreview").innerHTML = "Hãy nhập ít nhất một giai đoạn đóng để xác định mức đóng hiện tại.";
+    return;
+  }
+  if (!retirementMonth) {
+    $("forecastPreview").innerHTML = "Chưa xác định được tháng nghỉ hưu để tạo phần thời gian dự kiến.";
+    return;
+  }
+
+  const projection = buildProjectedPeriods(basePeriods, retirementMonth, forecastOptions());
+  if (!projection.monthsAdded) {
+    $("forecastPreview").innerHTML = `Dữ liệu đã kéo dài đến <strong>${displayMonth(latest.to)}</strong>; không có tháng nào cần bổ sung.`;
+    return;
+  }
+
+  const modeText = coefficientMode
+    ? `theo hệ số hiện tại${projection.periods.length > 1 ? " và lịch nâng bậc đã cấu hình" : ""}`
+    : "theo mức tiền đóng hiện tại";
+  const warnings = projection.warnings.length
+    ? `<br><span>${projection.warnings.map(escapeHtml).join(" ")}</span>`
+    : "";
+  $("forecastPreview").innerHTML = `Sẽ tự bổ sung <strong>${projection.monthsAdded} tháng</strong>, từ sau ${displayMonth(latest.to)} đến ${displayMonth(retirementMonth)}, ${modeText}.${warnings}`;
+}
+
 $("sex").addEventListener("change", () => updateRetirementDates({ resetSpecial: true }));
 $("birthDate").addEventListener("change", () => updateRetirementDates({ resetSpecial: true }));
 $("retirementCase").addEventListener("change", updateRetirementCase);
+$("actualRetirementMonth").addEventListener("change", updateForecastPreview);
 $("addPeriodBtn").addEventListener("click", () => addPeriodRow());
+$("autoExtend").addEventListener("change", updateForecastPreview);
+["gradeStartMonth", "raiseCadenceMonths", "coefficientStep", "maxCoefficient"].forEach(id => $(id).addEventListener("change", updateForecastPreview));
 
 function setImportStatus(type, html) {
   $("importStatus").innerHTML = `<div class="alert ${type}">${html}</div>`;
 }
 
-$("historyFile").addEventListener("change", event => {
-  const file = event.target.files?.[0];
-  if (file) setImportStatus("warning", `Đã chọn <strong>${escapeHtml(file.name)}</strong>. Bấm “Đọc hồ sơ bằng AI” để trích xuất.`);
+function renderSelectedFiles(files) {
+  if (!files.length) {
+    $("selectedFiles").innerHTML = "";
+    return;
+  }
+  const names = files.slice(0, 6).map(file => `<span>${escapeHtml(file.name)}</span>`).join("");
+  const more = files.length > 6 ? `<span>+ ${files.length - 6} tệp khác</span>` : "";
+  $("selectedFiles").innerHTML = `${names}${more}`;
+}
+
+$("historyFiles").addEventListener("change", event => {
+  const files = [...(event.target.files || [])];
+  renderSelectedFiles(files);
+  if (files.length) {
+    setImportStatus("warning", `Đã chọn <strong>${files.length} tệp</strong>. Hệ thống sẽ đọc chung và lọc phần giai đoạn bị trùng.`);
+  }
 });
 
 $("importAiBtn").addEventListener("click", async () => {
-  const file = $("historyFile").files?.[0];
-  if (!file) {
-    setImportStatus("error", "Hãy chọn một file PDF, Word hoặc Excel trước.");
+  const files = [...($("historyFiles").files || [])];
+  if (!files.length) {
+    setImportStatus("error", "Hãy chọn ít nhất một ảnh hoặc tệp hồ sơ trước.");
     return;
   }
 
   const btn = $("importAiBtn");
   btn.disabled = true;
   btn.textContent = "Đang đọc hồ sơ…";
-  setImportStatus("warning", "Đang trích xuất dữ liệu. File được gửi tới backend, backend mới gọi ShopAIKey; API key không đi xuống trình duyệt.");
+  setImportStatus("warning", `Đang đọc ${files.length} tệp, chuẩn hóa các giai đoạn và đối chiếu phần ảnh bị gối/trùng.`);
 
   try {
     const body = new FormData();
-    body.append("file", file);
+    files.forEach(file => body.append("files", file));
     const response = await fetch("/api/import", { method: "POST", body });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
@@ -162,20 +283,28 @@ $("importAiBtn").addEventListener("click", async () => {
     if (payload.person?.birthDate && !$("birthDate").value) $("birthDate").value = payload.person.birthDate;
     updateRetirementDates({ resetSpecial: true });
 
-    if (Array.isArray(payload.periods) && payload.periods.length) {
+    const existing = getPeriods({ includeBlank: false });
+    const combined = dedupeImportedPeriods([...existing, ...(payload.periods || [])]);
+    if (combined.periods.length) {
       rowsHost.innerHTML = "";
-      payload.periods.forEach(addPeriodRow);
+      combined.periods.forEach(addPeriodRow);
     }
 
-    const warnings = payload.warnings?.length
-      ? `<ul>${payload.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`
+    const allWarnings = [...new Set([...(payload.warnings || []), ...(combined.warnings || [])])];
+    const warningHtml = allWarnings.length
+      ? `<ul>${allWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`
       : "";
-    setImportStatus("success", `<strong>Đã trích xuất ${payload.periods?.length || 0} giai đoạn.</strong> Hãy đối chiếu số liệu trước khi tính.${warnings}`);
+    const removed = Number(payload.meta?.duplicatesRemoved || 0) + Number(combined.duplicatesRemoved || 0);
+    setImportStatus(
+      "success",
+      `<strong>Đã đọc ${payload.meta?.sourceCount || files.length} tệp và tạo ${combined.periods.length} giai đoạn.</strong> ${removed ? `Đã loại ${removed} phần tháng trùng lặp.` : "Không phát hiện phần trùng hệt nhau."} Hãy đối chiếu số liệu trước khi tính.${warningHtml}`
+    );
+    updateForecastPreview();
   } catch (error) {
     const extra = location.protocol === "file:" || ["github.io"].some(x => location.hostname.endsWith(x))
-      ? " Bản có AI cần chạy bằng server Node/Vercel; GitHub Pages thuần tĩnh không thể giữ bí mật API key."
+      ? " Chức năng AI cần chạy bằng backend Node/Vercel để giữ bí mật API key."
       : "";
-    setImportStatus("error", `<strong>Không nhập được file:</strong> ${escapeHtml(error.message)}.${extra}`);
+    setImportStatus("error", `<strong>Không nhập được hồ sơ:</strong> ${escapeHtml(error.message)}.${extra}`);
   } finally {
     btn.disabled = false;
     btn.textContent = "Đọc hồ sơ bằng AI";
@@ -185,12 +314,8 @@ $("importAiBtn").addEventListener("click", async () => {
 function renderResult(avg, result, input) {
   const status = result.eligible ? "success" : "error";
   const statusBody = result.eligible
-    ? `<strong>Đủ điều kiện theo dữ liệu đã nhập.</strong> Mức dưới đây được tính từ lịch sử đóng đã khai báo.`
+    ? `<strong>Đủ điều kiện theo dữ liệu đã nhập.</strong> Mức dưới đây được tính từ lịch sử đóng và phần dự kiến đã lựa chọn.`
     : `<strong>Chưa đủ điều kiện theo dữ liệu đã nhập.</strong><ul>${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`;
-
-  const warningHtml = avg.warnings.length
-    ? `<div class="alert warning"><strong>${avg.provisional ? "Kết quả đang tạm tính." : "Có điểm cần kiểm tra."}</strong><ul>${avg.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul></div>`
-    : "";
 
   const retirementYear = Number(input.retirementMonth.slice(0, 4));
   const normalAge = formatAgeMonths(normalRetirementAgeMonthsForYear(input.sex, retirementYear));
@@ -200,18 +325,29 @@ function renderResult(avg, result, input) {
       : `toàn bộ ${avg.stateWindow.usedMonths} tháng lương Nhà nước`)
     : "không áp dụng";
 
+  const nonProvisionalWarnings = (avg.warnings || []).filter(w =>
+    !/năm bắt đầu hưởng|hệ số\/mức tham chiếu|tương lai|tự bổ sung|giả định|bộ hệ số/i.test(w)
+  );
+  const warningHtml = nonProvisionalWarnings.length
+    ? `<div class="explain"><h3>Lưu ý dữ liệu</h3><ul>${nonProvisionalWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul></div>`
+    : "";
+
+  const provisionalHtml = avg.provisional
+    ? `<div class="provisional-summary"><strong>Kết quả đang tạm tính.</strong> ${avg.projectedMonths ? `Có ${avg.projectedMonths} tháng đóng tương lai được tự bổ sung; ` : ""}các mốc tương lai chưa có hệ số/mức lương cơ sở mới sẽ dùng dữ liệu pháp lý mới nhất đã tích hợp và cần cập nhật khi có quy định hoặc mức lương thực tế mới.</div>`
+    : "";
+
   resultBox.innerHTML = `
     <div class="alert ${status}">${statusBody}</div>
-    ${warningHtml}
     <div class="result-grid">
       <article class="metric primary">
         <span>${result.eligible ? "Lương hưu ước tính/tháng" : "Mức theo công thức nếu đủ điều kiện"}</span>
         <strong>${money.format(result.monthlyPension)}</strong>
-        <small>${avg.provisional ? "TẠM TÍNH — cần cập nhật hệ số/mức tham chiếu của năm hưởng" : "Theo bộ quy tắc và hệ số đang tích hợp"}</small>
+        <small>Theo dữ liệu đóng và giả định người dùng đã nhập</small>
       </article>
       <article class="metric"><span>Mức bình quân tự tính</span><strong>${money.format(avg.averageBase)}</strong></article>
       <article class="metric"><span>Tỷ lệ hưởng cuối cùng</span><strong>${number.format(result.finalRate)}%</strong></article>
       <article class="metric"><span>Tổng thời gian đóng</span><strong>${compactDuration(avg.totalMonths)}</strong></article>
+      <article class="metric"><span>Thời gian tự bổ sung</span><strong>${compactDuration(avg.projectedMonths || 0)}</strong></article>
       <article class="metric"><span>BHXH bắt buộc</span><strong>${compactDuration(avg.compulsoryMonths)}</strong></article>
       <article class="metric"><span>BHXH tự nguyện</span><strong>${compactDuration(avg.voluntaryMonths)}</strong></article>
       <article class="metric"><span>Tỷ lệ trước giảm trừ</span><strong>${number.format(result.baseRate)}%</strong></article>
@@ -230,10 +366,12 @@ function renderResult(avg, result, input) {
       <h3>Giải trình mức bình quân</h3>
       <p>Tháng bắt đầu tham gia BHXH bắt buộc trong dữ liệu: <strong>${displayMonth(avg.firstCompulsoryYm)}</strong>. Phần lương Nhà nước sử dụng: <strong>${stateWindowText}</strong>.</p>
       ${avg.compulsoryAverage != null ? `<p>Mức bình quân phần BHXH bắt buộc: <strong>${money.format(avg.compulsoryAverage)}</strong>.</p>` : ""}
-      ${avg.stateAverage != null ? `<p>Bình quân riêng phần lương Nhà nước: <strong>${money.format(avg.stateAverage)}</strong>.</p>` : ""}
+      ${avg.stateAverage != null ? `<p>Bình quân riêng phần lương Nhà nước: <strong>${money.format(avg.stateAverage)}</strong>. Các phụ cấp thuộc căn cứ đóng đã được cộng vào tiền lương từng tháng trước khi bình quân.</p>` : ""}
       <p>Công thức tỷ lệ: <strong>${number.format(result.baseRate)}%</strong>${result.reduction ? ` − ${number.format(result.reduction)}% giảm trừ` : ""} = <strong>${number.format(result.finalRate)}%</strong>.</p>
       <p>Lương hưu trước kiểm tra mức tối thiểu: <strong>${money.format(result.rawMonthly)}</strong>${result.floorApplicable ? `; mức tham chiếu dùng kiểm tra: <strong>${money.format(result.referenceLevel)}</strong>` : ""}.</p>
     </div>
+    ${warningHtml}
+    ${provisionalHtml}
   `;
   resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -245,7 +383,7 @@ form.addEventListener("submit", event => {
   const birthDate = $("birthDate").value;
   const retirementCase = $("retirementCase").value;
   const statutoryMonth = $("statutoryRetirementMonth").value;
-  const retirementMonth = retirementCase === "normal" ? statutoryMonth : $("actualRetirementMonth").value;
+  const retirementMonth = getRetirementMonth();
 
   if (!sex || !birthDate || !statutoryMonth) {
     resultBox.innerHTML = `<div class="alert error">Vui lòng nhập giới tính và ngày sinh hợp lệ để hệ thống xác định tháng nghỉ hưu.</div>`;
@@ -256,8 +394,22 @@ form.addEventListener("submit", event => {
     return;
   }
 
-  const periods = getPeriods();
+  const basePeriods = getPeriods({ includeBlank: false });
+  if (!basePeriods.length) {
+    resultBox.innerHTML = `<div class="alert error">Vui lòng nhập ít nhất một giai đoạn đóng BHXH hợp lệ hoặc import hồ sơ trước khi tính.</div>`;
+    resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  let periods = basePeriods;
+  let forecastWarnings = [];
+  if ($("autoExtend").checked) {
+    const projection = buildProjectedPeriods(basePeriods, retirementMonth, forecastOptions());
+    periods = [...basePeriods, ...projection.periods];
+    forecastWarnings = projection.warnings;
+  }
+
   const avg = calculateAverageBase(periods, { retirementMonth });
+  avg.warnings = [...new Set([...(forecastWarnings || []), ...(avg.warnings || [])])];
   if (!avg.ok) {
     resultBox.innerHTML = `
       <div class="alert error"><strong>Chưa thể tính mức bình quân.</strong><ul>${avg.errors.map(e => `<li>${escapeHtml(e)}</li>`).join("")}</ul></div>

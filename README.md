@@ -1,182 +1,199 @@
-# VN Pension Calculator v2
+# VN Pension Calculator v2.1
 
-Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024, có khả năng:
+Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024, thiết kế theo nguyên tắc **AI chỉ đọc hồ sơ — engine pháp lý mới thực hiện phép tính**.
 
-- tự xác định **tháng đủ tuổi nghỉ hưu** từ ngày sinh + giới tính;
-- nhập **chi tiết quá trình đóng BHXH theo từng giai đoạn**;
-- chấp nhận tiền lương Nhà nước nhập bằng **hệ số** hoặc **VND/tháng**;
-- tự tính mức bình quân tiền lương/thu nhập làm căn cứ tính lương hưu;
-- hỗ trợ lịch sử có lương Nhà nước, lương do NSDLĐ quyết định và BHXH tự nguyện trong cùng một hồ sơ;
-- nhập nhanh dữ liệu từ **PDF / Word / Excel / CSV / TXT** bằng ShopAIKey;
-- PDF scan có ít lớp chữ được render thành ảnh để gửi model vision;
-- AI chỉ trích xuất dữ liệu; **engine JavaScript cố định** mới tính lương hưu.
+> Công cụ dùng để tham khảo, kiểm tra và mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH ghi nhận và văn bản có hiệu lực tại thời điểm giải quyết chế độ.
 
-> Đây là công cụ tham khảo/kiểm tra sơ bộ. Kết quả chính thức phụ thuộc dữ liệu được cơ quan BHXH ghi nhận và quy định có hiệu lực tại thời điểm giải quyết.
+## 1. Chức năng chính
 
-## 1. Các thay đổi so với v1
-
-### Bỏ lựa chọn “BHXH bắt buộc / BHXH tự nguyện” ở đầu form
-
-Bản v2 không bắt người dùng phân loại toàn bộ hồ sơ bằng một lựa chọn chung. Mỗi dòng lịch sử đóng có trường **Chế độ tiền lương/thu nhập**:
-
-- `state`: tiền lương do Nhà nước quy định;
-- `employer`: tiền lương do người sử dụng lao động quyết định;
-- `voluntary`: thu nhập làm căn cứ đóng BHXH tự nguyện;
-- `unknown`: AI chưa xác định được — người dùng phải kiểm tra trước khi tính.
-
-### Tự tính tháng dự kiến nghỉ hưu
-
-Sau khi có `Ngày sinh` + `Giới tính`, frontend gọi `statutoryRetirementAttainmentMonth()` và tự điền:
-
-- **Tháng dự kiến nghỉ hưu**: tháng đủ tuổi theo lộ trình Nghị định 135/2020/NĐ-CP;
-- **Tháng bắt đầu hưởng**: tháng liền kề sau tháng nghỉ hưu.
-
-Ở điều kiện lao động bình thường, ô tháng nghỉ hưu không cho sửa thủ công. Trường hợp nghỉ hưu đặc thù được đặt trong phần nâng cao và có ô tháng nghỉ thực tế riêng.
-
-### Tính mức bình quân từ lịch sử đóng
-
-Người dùng không còn nhập tay “mức bình quân”. Mỗi giai đoạn gồm:
-
-| Trường | Ý nghĩa |
-|---|---|
-| Từ tháng | `YYYY-MM` |
-| Đến tháng | `YYYY-MM`, tính cả tháng cuối |
-| Chế độ | Nhà nước / NSDLĐ / tự nguyện |
-| Cách nhập | Hệ số hoặc VND |
-| Giá trị | Hệ số hoặc mức đóng/tháng |
-| Ghi chú | Đơn vị, chức danh, nguồn dữ liệu... |
-
-Nếu mức đóng thay đổi, tách thành dòng mới. Engine phát hiện tháng bị trùng để tránh cộng thời gian hai lần.
+- Tự xác định **tháng dự kiến nghỉ hưu** từ ngày sinh + giới tính theo lộ trình tuổi nghỉ hưu.
+- Không bắt người dùng chọn một loại BHXH chung ở đầu form; chế độ được xác định theo **từng giai đoạn đóng**.
+- Nhập quá trình đóng theo `Từ tháng → Đến tháng`, bằng **hệ số** hoặc **VND/tháng**.
+- Tính mức bình quân từ lịch sử đóng thay vì yêu cầu người dùng tự nhập mức bình quân.
+- Cho phép nhập các khoản **phụ cấp/khoản bổ sung thuộc căn cứ đóng BHXH** trước khi tính bình quân.
+- Import đồng thời nhiều **JPG / PNG / WEBP / PDF / Word / Excel / CSV / TXT**.
+- Tự lọc phần thời gian bị trùng do nhiều ảnh chụp có vùng gối nhau.
+- Nếu cùng một tháng xuất hiện hai giá trị khác nhau, hệ thống **không tự chọn số mới** mà giữ bản đọc trước và cảnh báo tháng cần đối chiếu.
+- Tùy chọn **tự bổ sung quá trình đóng đến tháng nghỉ hưu**:
+  - mức đóng bằng VND: giữ mức lương/thu nhập hiện tại;
+  - lương Nhà nước theo hệ số: mô phỏng nâng bậc theo chu kỳ người dùng cấu hình và tự áp dụng các mốc lương cơ sở đã tích hợp.
+- Kết quả tương lai chỉ có một ghi chú ngắn **“Kết quả đang tạm tính”** ở cuối phần kết quả.
 
 ## 2. Cơ sở pháp lý được mô hình hóa
 
-Bản v2 tổ chức rule theo các nhóm chính:
+Các rule chính hiện đặt trong `js/rules.js`, `js/contributions.js` và `js/pension.js`:
 
-- Luật BHXH số 41/2024/QH15, hiệu lực từ 01/07/2025;
-- Nghị định 158/2025/NĐ-CP;
-- Thông tư 12/2025/TT-BNV;
-- Nghị định 135/2020/NĐ-CP về tuổi nghỉ hưu;
-- hệ số điều chỉnh tiền lương/thu nhập năm 2025;
-- hệ số điều chỉnh tiền lương/thu nhập năm 2026 theo Công văn 340/BHXH-CSXH ngày 03/02/2026;
-- mức tham chiếu/lương cơ sở đang tích hợp: 2.340.000 đồng và từ 01/07/2026 là 2.530.000 đồng.
+- Luật Bảo hiểm xã hội số **41/2024/QH15**, hiệu lực từ 01/07/2025;
+- Nghị định **135/2020/NĐ-CP** về tuổi nghỉ hưu;
+- Nghị định **158/2025/NĐ-CP** quy định chi tiết về BHXH bắt buộc;
+- Thông tư **12/2025/TT-BNV** và các quy định hướng dẫn có liên quan;
+- Thông tư **08/2013/TT-BNV**, được sửa đổi bởi Thông tư **03/2021/TT-BNV**, dùng làm cơ sở cho cấu hình chu kỳ nâng bậc thường xuyên;
+- Nghị định **161/2026/NĐ-CP**: mức lương cơ sở 2.530.000 đồng/tháng từ 01/07/2026;
+- bộ hệ số điều chỉnh tiền lương/thu nhập đã đóng BHXH năm 2025 và năm 2026 đang tích hợp trong source.
 
 ### Khoảng thời gian bình quân của nhóm lương Nhà nước
 
-Theo thời điểm bắt đầu tham gia BHXH bắt buộc, engine dùng:
+Theo mốc bắt đầu tham gia BHXH bắt buộc, engine đang mô hình hóa:
 
-- trước 1995: 60 tháng;
-- 1995–2000: 72 tháng;
-- 2001–2006: 96 tháng;
-- 2007–2015: 120 tháng;
-- 2016–2019: 180 tháng;
-- 2020–2024: 240 tháng;
-- từ 2025: toàn bộ thời gian.
+| Bắt đầu tham gia | Khoảng lương Nhà nước dùng tính bình quân |
+|---|---:|
+| Trước 1995 | 60 tháng |
+| 1995–2000 | 72 tháng |
+| 2001–2006 | 96 tháng |
+| 2007–2015 | 120 tháng |
+| 2016–2019 | 180 tháng |
+| 2020–2024 | 240 tháng |
+| Từ 2025 | Toàn bộ thời gian |
 
-Với lịch sử hỗn hợp lương Nhà nước + lương doanh nghiệp, engine tính phần Nhà nước theo cửa sổ nói trên và phần doanh nghiệp trên toàn bộ thời gian đã điều chỉnh.
+Với lịch sử hỗn hợp, engine giữ riêng logic lương Nhà nước, lương do người sử dụng lao động quyết định và BHXH tự nguyện trước khi tổng hợp mức bình quân.
 
-### Hệ số năm tương lai
+## 3. Phụ cấp tính đóng BHXH
 
-Repo chỉ tích hợp các hệ số đã xác định cho 2025 và 2026. Nếu tháng hưởng thuộc **2027 trở đi**, engine dùng dữ liệu mới nhất chỉ để mô phỏng và bắt buộc gắn cảnh báo **TẠM TÍNH**. Không tự bịa hệ số tương lai.
+### 3.1. Tiền lương do Nhà nước quy định, nhập bằng hệ số
 
-## 3. Lưu ý về dữ liệu “hệ số”
+Mỗi giai đoạn có thể nhập riêng:
 
-Đối với lương do Nhà nước quy định:
+- hệ số lương chính;
+- hệ số phụ cấp chức vụ;
+- tỷ lệ phụ cấp thâm niên vượt khung;
+- tỷ lệ phụ cấp thâm niên nghề;
+- hệ số chênh lệch bảo lưu.
 
-- nếu nhập `coefficient`, giá trị phải là **hệ số dùng làm căn cứ đóng BHXH** của giai đoạn đó;
-- nếu hồ sơ chỉ có VND, engine có thể quy đổi trong các giai đoạn đã có dữ liệu mức lương cơ sở lịch sử;
-- hồ sơ rất cũ, hồ sơ quân đội/công an, phụ cấp đặc thù, khoản cố định không tỷ lệ theo lương cơ sở hoặc trường hợp chuyển đổi bảng lương cần đối chiếu thêm — web không được coi là thay thế quyết định của cơ quan BHXH.
+Engine quy đổi thành tổng hệ số làm căn cứ đóng theo cấu trúc:
 
-## 4. ShopAIKey + GPT-5.6 Terra
+```text
+TNVK = hệ số lương × % TNVK
+Thâm niên nghề = (hệ số lương + PC chức vụ + TNVK quy hệ số) × % thâm niên nghề
+Tổng hệ số đóng = hệ số lương + PC chức vụ + TNVK + thâm niên nghề + chênh lệch bảo lưu
+```
 
-ShopAIKey cung cấp endpoint tương thích OpenAI. Repo gọi API ở **backend**, không gọi trực tiếp từ trình duyệt.
+Nếu hồ sơ đã ghi **tổng tiền lương làm căn cứ đóng BHXH bằng VND**, hãy nhập tổng đó ở cột lương và để phụ cấp riêng bằng 0 để tránh cộng hai lần.
 
-Biến môi trường:
+### 3.2. Tiền lương do người sử dụng lao động quyết định
+
+Có thể nhập:
+
+- tiền lương công việc/chức danh;
+- tổng phụ cấp và khoản bổ sung ổn định **thuộc căn cứ đóng BHXH**.
+
+Engine cộng hai phần này trước khi áp dụng hệ số điều chỉnh và tính bình quân.
+
+Không nên nhập các khoản chỉ phụ thuộc biến động năng suất/kết quả làm việc nếu chúng không thuộc căn cứ đóng BHXH của hồ sơ.
+
+## 4. Import nhiều ảnh/tệp và chống trùng
+
+Frontend cho phép chọn tối đa 20 tệp trong một lần import. Backend đọc toàn bộ nguồn trong cùng một request để model có ngữ cảnh giữa các ảnh.
+
+Sau bước trích xuất, dữ liệu được đưa qua `dedupeImportedPeriods()`:
+
+1. Mỗi giai đoạn được mở rộng theo từng tháng.
+2. Cùng tháng + cùng chế độ + cùng lương/phụ cấp → coi là trùng và chỉ giữ một bản.
+3. Cùng tháng nhưng khác lương/phụ cấp → đánh dấu xung đột, giữ bản xuất hiện trước và cảnh báo người dùng đối chiếu.
+4. Các tháng liên tiếp có dữ liệu giống nhau được nén lại thành một giai đoạn.
+
+Nhờ vậy ảnh 1 kết thúc ở 06/2024 và ảnh 2 chụp lặp lại 05–06/2024 trước khi tiếp tục từ 07/2024 sẽ không làm tăng sai số tháng đóng.
+
+## 5. Tự bổ sung quá trình đóng đến nghỉ hưu
+
+Bật lựa chọn **“Tự bổ sung quá trình đóng đến tháng nghỉ hưu”** để tạo dữ liệu giả định từ tháng ngay sau giai đoạn thực tế cuối cùng.
+
+### Mức đóng bằng VND
+
+Web giữ nguyên:
+
+- tiền lương/thu nhập hiện tại;
+- phụ cấp/khoản bổ sung tính đóng hiện tại (nếu có).
+
+Mức này được kéo dài đến tháng nghỉ hưu.
+
+### Lương Nhà nước theo hệ số
+
+Web **không tự suy ra ngạch/bậc** chỉ từ hệ số hiện tại. Người dùng cấu hình:
+
+- tháng bắt đầu hưởng bậc hiện tại;
+- chu kỳ xét nâng bậc: 24 / 36 / 60 tháng;
+- mức tăng hệ số mỗi lần;
+- hệ số tối đa nếu muốn giới hạn.
+
+Các mốc thay đổi **mức lương cơ sở** có trong `BASE_SALARY_LEVELS` được áp dụng tự động khi quy đổi từng tháng. Nếu tương lai có bảng lương mới, hệ số mới hoặc quy định mới chưa có trong repo, kết quả phải được cập nhật lại.
+
+## 6. Kết quả đang tạm tính
+
+Thông báo tạm tính được rút gọn và đặt **cuối cùng** trong phần kết quả. Kết quả được đánh dấu tạm tính khi có một trong các tình huống như:
+
+- có tháng tương lai do người dùng chọn tự bổ sung;
+- năm hưởng nằm sau bộ hệ số điều chỉnh mới nhất đã tích hợp;
+- mức lương cơ sở/mức tham chiếu tương lai chưa có văn bản mới trong bộ rule hiện tại.
+
+## 7. Kết nối AI để đọc hồ sơ
+
+API key chỉ nằm ở backend; tuyệt đối không đưa key vào trình duyệt hoặc commit GitHub.
 
 ```env
-SHOPAIKEY_API_KEY=sk-your-shopaikey-key
+SHOPAIKEY_API_KEY=your-api-key
 SHOPAIKEY_BASE_URL=https://api.shopaikey.com/v1
 SHOPAIKEY_MODEL=gpt-5.6-terra
 PORT=3000
 ```
 
-`SHOPAIKEY_MODEL` để cấu hình thay vì hard-code sâu trong source. Mặc định theo yêu cầu hiện tại là `gpt-5.6-terra`. Nếu tài khoản/gateway ShopAIKey trả lỗi model không tồn tại, đổi biến này sang đúng Model ID ShopAIKey đang cấp cho tài khoản.
+Các biến trên giữ nguyên theo gateway API đang sử dụng, nhưng giao diện người dùng không hiển thị tên gateway/model.
 
-### AI trả về gì?
-
-Backend yêu cầu model trả JSON:
+Model chỉ trả dữ liệu cấu trúc, ví dụ:
 
 ```json
 {
-  "person": {
-    "birthDate": "1969-05-20",
-    "sex": "female"
-  },
+  "person": {"birthDate":"1969-05-20", "sex":"female"},
   "periods": [
     {
-      "from": "2018-07",
-      "to": "2019-06",
-      "regime": "state",
-      "valueType": "coefficient",
-      "coefficient": 4.98,
-      "amountVnd": null,
-      "note": "Nguồn: bảng quá trình đóng"
+      "from":"2024-07",
+      "to":"2025-06",
+      "regime":"state",
+      "valueType":"coefficient",
+      "coefficient":4.98,
+      "positionAllowanceCoeff":0.3,
+      "seniorityBeyondPercent":0,
+      "professionalSeniorityPercent":10,
+      "reservedDifferenceCoeff":0,
+      "allowanceVnd":0,
+      "note":"Nguồn: ảnh quá trình đóng"
     }
   ],
-  "warnings": []
+  "warnings":[]
 }
 ```
 
-AI **không được trả lương hưu cuối cùng**. Các dòng JSON được đưa lại vào form để người dùng kiểm tra; `js/contributions.js` và `js/pension.js` mới thực hiện phép tính.
+AI **không quyết định lương hưu cuối cùng**. Dữ liệu sau import vẫn được người dùng xem lại, sau đó engine JavaScript mới tính.
 
-## 5. Bảo mật
-
-Không bao giờ đưa `SHOPAIKEY_API_KEY` vào:
-
-- `index.html`;
-- `js/app.js`;
-- GitHub commit;
-- biến JavaScript có thể xem bằng DevTools.
-
-`.env` đã nằm trong `.gitignore`.
-
-Vì vậy, **GitHub Pages thuần tĩnh chỉ chạy được phần nhập tay/tính toán**, không thể chạy an toàn chức năng AI. Để dùng import AI, chạy Node server hoặc deploy full-stack.
-
-## 6. Chạy local
+## 8. Chạy local
 
 Yêu cầu Node.js 20+.
 
 ```bash
 npm install
 cp .env.example .env
-# sửa SHOPAIKEY_API_KEY trong .env
+# điền API key trong .env
 npm start
 ```
 
-Mở:
+Mở `http://localhost:3000`.
 
-```text
-http://localhost:3000
-```
+Kiểm tra backend: `GET /api/health`.
 
-Kiểm tra backend:
+## 9. Deploy từ GitHub
 
-```text
-GET /api/health
-```
+Có thể đưa toàn bộ repo lên GitHub và deploy full-stack lên Vercel/Node hosting.
 
-## 7. Deploy Vercel
-
-Repo có `vercel.json` để route request qua Node entrypoint `server/index.js`.
-
-Sau khi import GitHub repo vào Vercel, cấu hình Environment Variables:
+Cần thiết lập biến môi trường trên nền tảng deploy:
 
 - `SHOPAIKEY_API_KEY`
-- `SHOPAIKEY_BASE_URL=https://api.shopaikey.com/v1`
-- `SHOPAIKEY_MODEL=gpt-5.6-terra`
+- `SHOPAIKEY_BASE_URL`
+- `SHOPAIKEY_MODEL`
 
 Không commit `.env`.
 
-## 8. Cấu trúc repo
+> GitHub Pages thuần tĩnh vẫn chạy được giao diện và tính toán nhập tay, nhưng không nên gọi API AI trực tiếp từ browser vì sẽ làm lộ API key.
+
+## 10. Cấu trúc repo
 
 ```text
 vn-pension-calculator-v2/
@@ -201,30 +218,32 @@ vn-pension-calculator-v2/
 └── package.json
 ```
 
-## 9. Kiểm thử
+## 11. Kiểm thử
 
 ```bash
 npm test
 ```
 
-Các test hiện kiểm tra:
+Bộ test bao gồm:
 
-- quy tắc làm tròn tháng lẻ;
-- tỷ lệ lương hưu nam/nữ;
+- tuổi nghỉ hưu và tỷ lệ hưởng;
 - giảm trừ nghỉ trước tuổi;
-- tháng đủ tuổi nghỉ hưu theo lộ trình;
-- mở rộng khoảng đóng theo tháng và phát hiện trùng;
-- hệ số điều chỉnh tiền lương doanh nghiệp;
-- lương Nhà nước nhập bằng hệ số trước/sau 2016;
-- công thức lịch sử hỗn hợp;
-- kết hợp BHXH tự nguyện;
-- không tự suy đoán hệ số của năm tương lai;
-- mức tham chiếu trong trường hợp chuyển tiếp được chọn.
+- làm tròn tháng lẻ;
+- phát hiện tháng đóng trùng;
+- lọc trùng từ nhiều ảnh;
+- cảnh báo dữ liệu chồng lấn nhưng khác giá trị;
+- lương Nhà nước trước/sau 2016;
+- phụ cấp tính đóng của lương Nhà nước;
+- phụ cấp/khoản bổ sung của lương doanh nghiệp;
+- lịch sử đóng hỗn hợp;
+- BHXH tự nguyện;
+- giữ mức VND hiện tại đến nghỉ hưu;
+- mô phỏng nâng hệ số theo chu kỳ cấu hình;
+- đánh dấu tạm tính khi dùng dữ liệu tương lai.
 
-## 10. Những phần cần tiếp tục nếu dùng cho nghiệp vụ thật
+## 12. Khuyến nghị trước khi dùng nghiệp vụ chính thức
 
-1. Bổ sung đầy đủ bảng/mốc quy đổi tiền lương Nhà nước cho hồ sơ rất cũ và các bảng lương chuyên ngành.
-2. Lập bộ test đối chiếu với ít nhất 20–50 hồ sơ đã có quyết định hưởng lương hưu thực tế.
-3. Bổ sung màn hình xem chi tiết từng tháng sau điều chỉnh để cán bộ có thể audit từng con số.
-4. Cập nhật hệ số điều chỉnh và mức tham chiếu mỗi khi có văn bản mới.
-5. Nếu lưu hồ sơ cá nhân trên server, phải bổ sung xác thực, mã hóa, thời hạn lưu và chính sách dữ liệu; bản hiện tại không lưu hồ sơ vào database.
+- Đối chiếu tối thiểu 20–50 hồ sơ đã có quyết định hưởng thực tế.
+- Bổ sung bảng lương/ngạch/bậc chuyên ngành nếu muốn tự xác định chính xác hệ số nâng bậc thay vì để người dùng cấu hình.
+- Cập nhật mức lương cơ sở, mức tham chiếu và hệ số điều chỉnh ngay khi có văn bản mới.
+- Nếu lưu hồ sơ cá nhân lên server, cần bổ sung xác thực, mã hóa, thời hạn lưu và chính sách dữ liệu. Bản hiện tại không lưu hồ sơ vào database.

@@ -11,6 +11,13 @@ import { createCanvas } from "@napi-rs/canvas";
 const MAX_TEXT = 70000;
 const MAX_PDF_PAGES = 8;
 const TEXT_EXTENSIONS = new Set([".txt", ".csv"]);
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+const IMAGE_MIME = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp"
+};
 
 function cleanText(text) {
   return String(text || "")
@@ -38,7 +45,6 @@ async function parsePdf(buffer) {
     return { text, images: [], note: pdf.numPages > pages ? `Chỉ đọc ${pages}/${pdf.numPages} trang đầu để giới hạn dung lượng.` : null };
   }
 
-  // PDF scan/ảnh: render tối đa 6 trang đầu thành PNG và gửi qua vision.
   const images = [];
   const renderPages = Math.min(pdf.numPages, 6);
   for (let i = 1; i <= renderPages; i++) {
@@ -57,7 +63,7 @@ async function parsePdf(buffer) {
   return {
     text,
     images,
-    note: `PDF có ít lớp chữ; đã chuyển ${renderPages} trang đầu thành ảnh để AI đọc bằng vision.`
+    note: `PDF có ít lớp chữ; đã chuyển ${renderPages} trang đầu thành ảnh để AI đọc.`
   };
 }
 
@@ -91,7 +97,13 @@ export async function parseUploadedFile(file) {
   let images = [];
   const warnings = [];
 
-  if (ext === ".pdf") {
+  if (IMAGE_EXTENSIONS.has(ext)) {
+    images = [{
+      mimeType: IMAGE_MIME[ext] || file.mimetype || "image/jpeg",
+      base64: file.buffer.toString("base64"),
+      label: file.originalname || "Ảnh hồ sơ"
+    }];
+  } else if (ext === ".pdf") {
     const parsed = await parsePdf(file.buffer);
     text = parsed.text;
     images = parsed.images;
@@ -107,11 +119,11 @@ export async function parseUploadedFile(file) {
   } else if (TEXT_EXTENSIONS.has(ext)) {
     text = cleanText(file.buffer.toString("utf8"));
   } else {
-    throw new Error("Định dạng file chưa được hỗ trợ. Hãy dùng PDF, DOC, DOCX, XLS, XLSX, CSV hoặc TXT.");
+    throw new Error("Định dạng chưa được hỗ trợ. Hãy dùng JPG, PNG, WEBP, PDF, DOC, DOCX, XLS, XLSX, CSV hoặc TXT.");
   }
 
   if (!text && !images.length) {
-    throw new Error("Không đọc được nội dung có ích từ file.");
+    throw new Error("Không đọc được nội dung có ích từ tệp.");
   }
 
   return { text, images, warnings };

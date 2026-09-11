@@ -1,9 +1,9 @@
 {
   "name": "vn-pension-calculator",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
-  "description": "Vietnam pension calculator based on contribution history, with ShopAIKey-assisted PDF/Word/Excel extraction.",
+  "description": "Vietnam pension calculator based on contribution history, allowances, multi-file AI extraction, and retirement projections.",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
