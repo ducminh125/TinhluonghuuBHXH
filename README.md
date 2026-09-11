@@ -1,119 +1,230 @@
-# VN Pension Calculator — Tính lương hưu theo Luật BHXH 2024
+# VN Pension Calculator v2
 
-Web tĩnh (HTML/CSS/JavaScript) để ước tính lương hưu tại Việt Nam theo **Luật Bảo hiểm xã hội số 41/2024/QH15**, áp dụng cho chế độ mới từ **01/07/2025**. Repo không cần backend và có thể triển khai miễn phí bằng GitHub Pages.
+Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024, có khả năng:
 
-> **Lưu ý:** Đây là công cụ tham khảo, không thay thế kết quả giải quyết chế độ của cơ quan BHXH. Bản v1 yêu cầu người dùng nhập **mức bình quân tiền lương/thu nhập làm căn cứ tính lương hưu đã được xác định và điều chỉnh đúng quy định**.
+- tự xác định **tháng đủ tuổi nghỉ hưu** từ ngày sinh + giới tính;
+- nhập **chi tiết quá trình đóng BHXH theo từng giai đoạn**;
+- chấp nhận tiền lương Nhà nước nhập bằng **hệ số** hoặc **VND/tháng**;
+- tự tính mức bình quân tiền lương/thu nhập làm căn cứ tính lương hưu;
+- hỗ trợ lịch sử có lương Nhà nước, lương do NSDLĐ quyết định và BHXH tự nguyện trong cùng một hồ sơ;
+- nhập nhanh dữ liệu từ **PDF / Word / Excel / CSV / TXT** bằng ShopAIKey;
+- PDF scan có ít lớp chữ được render thành ảnh để gửi model vision;
+- AI chỉ trích xuất dữ liệu; **engine JavaScript cố định** mới tính lương hưu.
 
-## Tính năng
+> Đây là công cụ tham khảo/kiểm tra sơ bộ. Kết quả chính thức phụ thuộc dữ liệu được cơ quan BHXH ghi nhận và quy định có hiệu lực tại thời điểm giải quyết.
 
-- BHXH bắt buộc và BHXH tự nguyện.
-- Tỷ lệ lương hưu nam/nữ theo Luật BHXH 2024.
-- Làm tròn tháng lẻ đóng BHXH: 1–6 tháng = 0,5 năm; 7–11 tháng = 1 năm.
-- Tự xác định tháng đạt tuổi nghỉ hưu theo lộ trình Nghị định 135/2020/NĐ-CP.
-- Mốc tuổi thấp hơn 05/10 năm được tính theo **lộ trình riêng theo năm**, không trừ cơ học 60/120 tháng từ ngày nghỉ hưu bình thường.
-- Kiểm tra một số nhóm nghỉ sớm theo Điều 64 và Điều 65.
-- Giảm tỷ lệ do nghỉ hưu trước tuổi khi suy giảm khả năng lao động.
-- Tùy chọn áp dụng mức lương hưu tối thiểu bằng mức tham chiếu cho đúng nhóm đủ điều kiện theo Nghị định 158/2025/NĐ-CP.
-- Unit test cho công thức cốt lõi và các mốc tuổi nghỉ hưu mẫu.
+## 1. Các thay đổi so với v1
 
-## Cơ sở pháp lý đã mã hóa
+### Bỏ lựa chọn “BHXH bắt buộc / BHXH tự nguyện” ở đầu form
 
-### 1. Điều kiện và tỷ lệ hưởng
+Bản v2 không bắt người dùng phân loại toàn bộ hồ sơ bằng một lựa chọn chung. Mỗi dòng lịch sử đóng có trường **Chế độ tiền lương/thu nhập**:
 
-Theo Điều 64 Luật BHXH 2024, nhiều nhóm người lao động tham gia BHXH bắt buộc được hưởng lương hưu khi nghỉ việc, có **từ đủ 15 năm đóng BHXH** và đáp ứng điều kiện tuổi/nghề tương ứng.
+- `state`: tiền lương do Nhà nước quy định;
+- `employer`: tiền lương do người sử dụng lao động quyết định;
+- `voluntary`: thu nhập làm căn cứ đóng BHXH tự nguyện;
+- `unknown`: AI chưa xác định được — người dùng phải kiểm tra trước khi tính.
 
-Theo Điều 66:
+### Tự tính tháng dự kiến nghỉ hưu
 
-- **Nữ:** 15 năm = 45%; sau đó mỗi năm +2%; tối đa 75%.
-- **Nam:** 20 năm = 45%; sau đó mỗi năm +2%; tối đa 75%.
-- **Nam từ đủ 15 đến dưới 20 năm:** 15 năm = 40%; sau đó mỗi năm +1%.
-- Trường hợp đủ điều kiện theo Điều 65 (suy giảm khả năng lao động), cứ mỗi năm nghỉ trước tuổi giảm 2%; lẻ dưới 6 tháng không giảm, từ đủ 6 đến dưới 12 tháng giảm 1%.
+Sau khi có `Ngày sinh` + `Giới tính`, frontend gọi `statutoryRetirementAttainmentMonth()` và tự điền:
 
-Theo khoản 6 Điều 5: khi tính mức hưởng, thời gian đóng có tháng lẻ **01–06 tháng = 0,5 năm; 07–11 tháng = 1 năm**.
+- **Tháng dự kiến nghỉ hưu**: tháng đủ tuổi theo lộ trình Nghị định 135/2020/NĐ-CP;
+- **Tháng bắt đầu hưởng**: tháng liền kề sau tháng nghỉ hưu.
 
-### 2. Tuổi nghỉ hưu bình thường
+Ở điều kiện lao động bình thường, ô tháng nghỉ hưu không cho sửa thủ công. Trường hợp nghỉ hưu đặc thù được đặt trong phần nâng cao và có ô tháng nghỉ thực tế riêng.
 
-Theo Điều 169 Bộ luật Lao động 2019 và Nghị định 135/2020/NĐ-CP:
+### Tính mức bình quân từ lịch sử đóng
 
-- Năm 2026: nam 61 tuổi 6 tháng; nữ 57 tuổi.
-- Năm 2027: nam 61 tuổi 9 tháng; nữ 57 tuổi 4 tháng.
-- Nam đạt 62 tuổi từ năm 2028.
-- Nữ tăng 4 tháng/năm và đạt 60 tuổi từ năm 2035.
+Người dùng không còn nhập tay “mức bình quân”. Mỗi giai đoạn gồm:
 
-### 3. Mức bình quân tiền lương
+| Trường | Ý nghĩa |
+|---|---|
+| Từ tháng | `YYYY-MM` |
+| Đến tháng | `YYYY-MM`, tính cả tháng cuối |
+| Chế độ | Nhà nước / NSDLĐ / tự nguyện |
+| Cách nhập | Hệ số hoặc VND |
+| Giá trị | Hệ số hoặc mức đóng/tháng |
+| Ghi chú | Đơn vị, chức danh, nguồn dữ liệu... |
 
-Điều 72 Luật BHXH 2024 quy định cách xác định mức bình quân tùy chế độ tiền lương và thời điểm bắt đầu tham gia. Ví dụ, người có toàn bộ thời gian theo tiền lương do người sử dụng lao động quyết định tính bình quân của toàn bộ thời gian; nhóm lương Nhà nước có số năm bình quân khác nhau theo thời điểm bắt đầu tham gia.
+Nếu mức đóng thay đổi, tách thành dòng mới. Engine phát hiện tháng bị trùng để tránh cộng thời gian hai lần.
 
-Bản v1 **không tự tái dựng mức bình quân từ lịch sử đóng** vì cần hệ số điều chỉnh tiền lương/thu nhập theo từng thời kỳ. Đây là phần nên làm ở v2 bằng bảng lịch sử từng tháng.
+## 2. Cơ sở pháp lý được mô hình hóa
 
-### 4. Mức tham chiếu
+Bản v2 tổ chức rule theo các nhóm chính:
 
-Theo khoản 13 Điều 141 Luật BHXH 2024, khi chưa bãi bỏ mức lương cơ sở thì mức tham chiếu bằng mức lương cơ sở. Từ **01/07/2026**, mức lương cơ sở/mức tham chiếu là **2.530.000 đồng/tháng** theo Nghị định 161/2026/NĐ-CP và thông tin hướng dẫn của BHXH Việt Nam.
+- Luật BHXH số 41/2024/QH15, hiệu lực từ 01/07/2025;
+- Nghị định 158/2025/NĐ-CP;
+- Thông tư 12/2025/TT-BNV;
+- Nghị định 135/2020/NĐ-CP về tuổi nghỉ hưu;
+- hệ số điều chỉnh tiền lương/thu nhập năm 2025;
+- hệ số điều chỉnh tiền lương/thu nhập năm 2026 theo Công văn 340/BHXH-CSXH ngày 03/02/2026;
+- mức tham chiếu/lương cơ sở đang tích hợp: 2.340.000 đồng và từ 01/07/2026 là 2.530.000 đồng.
 
-Tùy chọn “mức tối thiểu bằng mức tham chiếu” trong giao diện chỉ được bật nếu người sử dụng đã xác định mình thuộc đúng nhóm được bảo đảm tại Điều 13 Nghị định 158/2025/NĐ-CP.
+### Khoảng thời gian bình quân của nhóm lương Nhà nước
 
-## Nguồn tham khảo
+Theo thời điểm bắt đầu tham gia BHXH bắt buộc, engine dùng:
 
-- Luật BHXH 41/2024/QH15: https://xaydungchinhsach.chinhphu.vn/toan-van-luat-so-41-2024-qh15-bao-hiem-xa-hoi-119240723163650489.htm
-- Nghị định 158/2025/NĐ-CP: https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-158-2025-nd-cp-quy-dinh-ve-bao-hiem-xa-hoi-bat-buoc-119250629171336803.htm
-- Thông tư 12/2025/TT-BNV: https://xaydungchinhsach.chinhphu.vn/toan-van-thong-tu-12-2025-tt-bnv-quy-dinh-chi-tiet-mot-so-dieu-cua-luat-bhxh-ve-bhxh-bat-buoc-11925070415595016.htm
-- Tra cứu tuổi nghỉ hưu: https://xaydungchinhsach.chinhphu.vn/tra-cuu-tuoi-nghi-huu-thoi-diem-nghi-huu-cua-nguoi-lao-dong-theo-nam-sinh-119241029170451525.htm
-- BHXH Việt Nam về mức tham chiếu từ 01/07/2026: https://baohiemxahoi.gov.vn/tintuc/Pages/linh-vuc-bao-hiem-xa-hoi.aspx?CateID=168&itemID=26585
+- trước 1995: 60 tháng;
+- 1995–2000: 72 tháng;
+- 2001–2006: 96 tháng;
+- 2007–2015: 120 tháng;
+- 2016–2019: 180 tháng;
+- 2020–2024: 240 tháng;
+- từ 2025: toàn bộ thời gian.
 
-## Chạy local
+Với lịch sử hỗn hợp lương Nhà nước + lương doanh nghiệp, engine tính phần Nhà nước theo cửa sổ nói trên và phần doanh nghiệp trên toàn bộ thời gian đã điều chỉnh.
 
-Vì JavaScript dùng ES modules, hãy chạy bằng web server thay vì double-click file `index.html`:
+### Hệ số năm tương lai
 
-```bash
-npx serve .
+Repo chỉ tích hợp các hệ số đã xác định cho 2025 và 2026. Nếu tháng hưởng thuộc **2027 trở đi**, engine dùng dữ liệu mới nhất chỉ để mô phỏng và bắt buộc gắn cảnh báo **TẠM TÍNH**. Không tự bịa hệ số tương lai.
+
+## 3. Lưu ý về dữ liệu “hệ số”
+
+Đối với lương do Nhà nước quy định:
+
+- nếu nhập `coefficient`, giá trị phải là **hệ số dùng làm căn cứ đóng BHXH** của giai đoạn đó;
+- nếu hồ sơ chỉ có VND, engine có thể quy đổi trong các giai đoạn đã có dữ liệu mức lương cơ sở lịch sử;
+- hồ sơ rất cũ, hồ sơ quân đội/công an, phụ cấp đặc thù, khoản cố định không tỷ lệ theo lương cơ sở hoặc trường hợp chuyển đổi bảng lương cần đối chiếu thêm — web không được coi là thay thế quyết định của cơ quan BHXH.
+
+## 4. ShopAIKey + GPT-5.6 Terra
+
+ShopAIKey cung cấp endpoint tương thích OpenAI. Repo gọi API ở **backend**, không gọi trực tiếp từ trình duyệt.
+
+Biến môi trường:
+
+```env
+SHOPAIKEY_API_KEY=sk-your-shopaikey-key
+SHOPAIKEY_BASE_URL=https://api.shopaikey.com/v1
+SHOPAIKEY_MODEL=gpt-5.6-terra
+PORT=3000
 ```
 
-Hoặc:
+`SHOPAIKEY_MODEL` để cấu hình thay vì hard-code sâu trong source. Mặc định theo yêu cầu hiện tại là `gpt-5.6-terra`. Nếu tài khoản/gateway ShopAIKey trả lỗi model không tồn tại, đổi biến này sang đúng Model ID ShopAIKey đang cấp cho tài khoản.
 
-```bash
-python -m http.server 8080
+### AI trả về gì?
+
+Backend yêu cầu model trả JSON:
+
+```json
+{
+  "person": {
+    "birthDate": "1969-05-20",
+    "sex": "female"
+  },
+  "periods": [
+    {
+      "from": "2018-07",
+      "to": "2019-06",
+      "regime": "state",
+      "valueType": "coefficient",
+      "coefficient": 4.98,
+      "amountVnd": null,
+      "note": "Nguồn: bảng quá trình đóng"
+    }
+  ],
+  "warnings": []
+}
 ```
 
-Sau đó mở `http://localhost:8080`.
+AI **không được trả lương hưu cuối cùng**. Các dòng JSON được đưa lại vào form để người dùng kiểm tra; `js/contributions.js` và `js/pension.js` mới thực hiện phép tính.
 
-## Chạy test
+## 5. Bảo mật
+
+Không bao giờ đưa `SHOPAIKEY_API_KEY` vào:
+
+- `index.html`;
+- `js/app.js`;
+- GitHub commit;
+- biến JavaScript có thể xem bằng DevTools.
+
+`.env` đã nằm trong `.gitignore`.
+
+Vì vậy, **GitHub Pages thuần tĩnh chỉ chạy được phần nhập tay/tính toán**, không thể chạy an toàn chức năng AI. Để dùng import AI, chạy Node server hoặc deploy full-stack.
+
+## 6. Chạy local
+
+Yêu cầu Node.js 20+.
+
+```bash
+npm install
+cp .env.example .env
+# sửa SHOPAIKEY_API_KEY trong .env
+npm start
+```
+
+Mở:
+
+```text
+http://localhost:3000
+```
+
+Kiểm tra backend:
+
+```text
+GET /api/health
+```
+
+## 7. Deploy Vercel
+
+Repo có `vercel.json` để route request qua Node entrypoint `server/index.js`.
+
+Sau khi import GitHub repo vào Vercel, cấu hình Environment Variables:
+
+- `SHOPAIKEY_API_KEY`
+- `SHOPAIKEY_BASE_URL=https://api.shopaikey.com/v1`
+- `SHOPAIKEY_MODEL=gpt-5.6-terra`
+
+Không commit `.env`.
+
+## 8. Cấu trúc repo
+
+```text
+vn-pension-calculator-v2/
+├── index.html
+├── styles.css
+├── js/
+│   ├── rules.js
+│   ├── pension.js
+│   ├── contributions.js
+│   └── app.js
+├── server/
+│   ├── index.js
+│   ├── parsers.js
+│   └── shopaikey.js
+├── tests/
+│   ├── pension.test.js
+│   └── contributions.test.js
+├── .github/workflows/test.yml
+├── .env.example
+├── .gitignore
+├── vercel.json
+└── package.json
+```
+
+## 9. Kiểm thử
 
 ```bash
 npm test
 ```
 
-## Deploy GitHub Pages
+Các test hiện kiểm tra:
 
-1. Tạo repo mới trên GitHub, ví dụ `vn-pension-calculator`.
-2. Upload toàn bộ thư mục này lên branch `main`.
-3. Vào **Settings → Pages**.
-4. Ở **Build and deployment**, chọn **GitHub Actions**.
-5. Workflow `.github/workflows/pages.yml` sẽ tự deploy sau mỗi lần push lên `main`.
+- quy tắc làm tròn tháng lẻ;
+- tỷ lệ lương hưu nam/nữ;
+- giảm trừ nghỉ trước tuổi;
+- tháng đủ tuổi nghỉ hưu theo lộ trình;
+- mở rộng khoảng đóng theo tháng và phát hiện trùng;
+- hệ số điều chỉnh tiền lương doanh nghiệp;
+- lương Nhà nước nhập bằng hệ số trước/sau 2016;
+- công thức lịch sử hỗn hợp;
+- kết hợp BHXH tự nguyện;
+- không tự suy đoán hệ số của năm tương lai;
+- mức tham chiếu trong trường hợp chuyển tiếp được chọn.
 
-## Phạm vi chưa hỗ trợ trong v1
+## 10. Những phần cần tiếp tục nếu dùng cho nghiệp vụ thật
 
-- Tự tính mức bình quân từ toàn bộ lịch sử đóng BHXH và hệ số điều chỉnh từng năm.
-- Các chế độ đặc thù của lực lượng vũ trang.
-- Nhiễm HIV/AIDS do tai nạn rủi ro nghề nghiệp.
-- Điều ước quốc tế khi thời gian đóng ở Việt Nam dưới 15 năm.
-- Một số quy định chuyển tiếp/hồ sơ chờ hưu trước đây.
-- Tự tính trợ cấp một lần khi thời gian đóng vượt 30 năm (nữ) hoặc 35 năm (nam), đặc biệt phần đóng sau tuổi nghỉ hưu.
-
-## Kiến trúc
-
-```text
-vn-pension-calculator/
-├─ index.html
-├─ styles.css
-├─ js/
-│  ├─ rules.js       # dữ liệu pháp lý có thể cập nhật
-│  ├─ pension.js     # engine tính toán thuần hàm
-│  └─ app.js         # UI / form / render kết quả
-├─ tests/
-│  └─ pension.test.js
-├─ .github/workflows/pages.yml
-├─ package.json
-└─ README.md
-```
-
-Thiết kế này cố ý tách `rules.js` khỏi `pension.js` để khi lương cơ sở/mức tham chiếu hoặc lộ trình luật thay đổi, có thể cập nhật cấu hình mà không sửa toàn bộ giao diện.
+1. Bổ sung đầy đủ bảng/mốc quy đổi tiền lương Nhà nước cho hồ sơ rất cũ và các bảng lương chuyên ngành.
+2. Lập bộ test đối chiếu với ít nhất 20–50 hồ sơ đã có quyết định hưởng lương hưu thực tế.
+3. Bổ sung màn hình xem chi tiết từng tháng sau điều chỉnh để cán bộ có thể audit từng con số.
+4. Cập nhật hệ số điều chỉnh và mức tham chiếu mỗi khi có văn bản mới.
+5. Nếu lưu hồ sơ cá nhân trên server, phải bổ sung xác thực, mã hóa, thời hạn lưu và chính sách dữ liệu; bản hiện tại không lưu hồ sơ vào database.

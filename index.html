@@ -2,131 +2,235 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Công cụ ước tính lương hưu Việt Nam theo Luật BHXH 2024, áp dụng từ 01/07/2025." />
-  <title>Tính lương hưu Việt Nam — Luật BHXH 2024</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="Công cụ ước tính lương hưu theo Luật BHXH 2024, nhập chi tiết quá trình đóng và hỗ trợ trích xuất PDF/Word/Excel bằng AI." />
+  <title>Tính lương hưu Việt Nam — BHXH 2024</title>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <header class="hero">
-    <div class="wrap">
-      <p class="eyebrow">CÔNG CỤ THAM KHẢO · BHXH VIỆT NAM</p>
-      <h1>Tính lương hưu theo Luật BHXH 2024</h1>
-      <p class="lead">Ước tính điều kiện, tỷ lệ hưởng và lương hưu hằng tháng. Công thức được tách thành module để dễ kiểm thử và cập nhật khi chính sách thay đổi.</p>
-      <p id="lawVersion" class="law-version"></p>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <div>
+        <p class="eyebrow">CÔNG CỤ THAM KHẢO · BHXH VIỆT NAM</p>
+        <h1>Tính lương hưu từ quá trình đóng BHXH</h1>
+        <p class="lead">Tự xác định tháng đủ tuổi nghỉ hưu, tính mức bình quân từ từng giai đoạn đóng và giải trình công thức.</p>
+      </div>
+      <div class="law-chip" id="lawVersion"></div>
     </div>
   </header>
 
-  <main class="wrap layout">
-    <section class="card form-card">
-      <div class="section-head">
-        <div><p class="step">01</p><h2>Nhập thông tin</h2></div>
-        <span class="badge">Không lưu dữ liệu</span>
-      </div>
+  <main class="shell page-grid">
+    <section class="main-column">
+      <form id="calculatorForm" novalidate>
+        <section class="card">
+          <div class="section-heading">
+            <div>
+              <span class="step">01</span>
+              <h2>Thông tin người lao động</h2>
+            </div>
+            <p>Tháng nghỉ hưu thông thường được hệ thống tự tính từ ngày sinh và giới tính.</p>
+          </div>
 
-      <form id="calculatorForm">
-        <div class="grid two">
-          <label>Loại BHXH
-            <select id="insuranceType" name="insuranceType">
-              <option value="compulsory">BHXH bắt buộc</option>
-              <option value="voluntary">BHXH tự nguyện</option>
-            </select>
-          </label>
-          <label>Giới tính
-            <select name="sex">
-              <option value="male">Nam</option>
-              <option value="female">Nữ</option>
-            </select>
-          </label>
-          <label>Ngày sinh
-            <input name="birthDate" type="date" required />
-          </label>
-          <label>Tháng dự kiến nghỉ hưu
-            <input name="retirementMonth" type="month" min="2025-07" required />
-          </label>
-        </div>
-
-        <div class="subsection">
-          <h3>Thời gian đã đóng BHXH</h3>
-          <div class="grid two compact">
-            <label>Số năm
-              <input name="contributionYears" type="number" min="0" max="60" value="20" required />
+          <div class="form-grid four">
+            <label class="field">
+              <span>Giới tính</span>
+              <select id="sex" name="sex" required>
+                <option value="">Chọn giới tính</option>
+                <option value="male">Nam</option>
+                <option value="female">Nữ</option>
+              </select>
             </label>
-            <label>Số tháng lẻ
-              <input name="contributionMonths" type="number" min="0" max="11" value="0" required />
+
+            <label class="field">
+              <span>Ngày sinh</span>
+              <input id="birthDate" name="birthDate" type="date" required />
+            </label>
+
+            <label class="field readonly-field">
+              <span>Tháng dự kiến nghỉ hưu</span>
+              <input id="statutoryRetirementMonth" type="month" readonly />
+              <small>Tự động theo lộ trình tuổi nghỉ hưu.</small>
+            </label>
+
+            <label class="field readonly-field">
+              <span>Tháng bắt đầu hưởng lương hưu</span>
+              <input id="statutoryPensionStart" type="month" readonly />
+              <small>Tháng liền kề sau tháng nghỉ hưu.</small>
             </label>
           </div>
-          <p class="hint">Điều kiện tối thiểu tính theo tháng thực tế. Khi tính mức hưởng: 1–6 tháng lẻ = 0,5 năm; 7–11 tháng lẻ = 1 năm.</p>
-        </div>
 
-        <div class="subsection">
-          <label>Mức bình quân tiền lương/thu nhập làm căn cứ tính lương hưu
-            <div class="money-input"><input id="averageBase" name="averageBase" inputmode="numeric" placeholder="Ví dụ: 12.000.000" required /><span>VNĐ/tháng</span></div>
-          </label>
-          <p class="hint">Bản v1 yêu cầu nhập mức bình quân đã xác định/điều chỉnh theo hồ sơ BHXH. Không lấy lương hiện tại thay cho mức bình quân nếu hai số khác nhau.</p>
-        </div>
+          <details class="advanced" id="advancedRetirement">
+            <summary>Trường hợp nghỉ hưu đặc thù / trước tuổi</summary>
+            <div class="advanced-body">
+              <div class="form-grid three">
+                <label class="field">
+                  <span>Trường hợp nghỉ hưu</span>
+                  <select id="retirementCase" name="retirementCase">
+                    <option value="normal">Điều kiện lao động bình thường</option>
+                    <option value="heavy">Nghề/công việc nặng nhọc, độc hại hoặc vùng đặc biệt khó khăn</option>
+                    <option value="coal">Khai thác than trong hầm lò</option>
+                    <option value="impairment61">Suy giảm KNLĐ từ 61% đến dưới 81%</option>
+                    <option value="impairment81">Suy giảm KNLĐ từ 81% trở lên</option>
+                    <option value="specialImpairment">Nghề đặc biệt NNĐHNH + suy giảm KNLĐ</option>
+                  </select>
+                </label>
 
-        <div class="subsection">
-          <label>Trường hợp nghỉ hưu
-            <select id="retirementCase" name="retirementCase">
-              <option value="normal">Đủ tuổi trong điều kiện bình thường</option>
-              <option value="heavy">Nghề nặng nhọc/độc hại hoặc vùng đặc biệt khó khăn — Điều 64</option>
-              <option value="coal">Khai thác than trong hầm lò — Điều 64</option>
-              <option value="impairment61">Suy giảm KNLĐ từ 61% đến dưới 81% — Điều 65</option>
-              <option value="impairment81">Suy giảm KNLĐ từ 81% trở lên — Điều 65</option>
-              <option value="specialImpairment">Đặc biệt nặng nhọc + suy giảm KNLĐ ≥61% — Điều 65</option>
-            </select>
-          </label>
-        </div>
+                <label class="field" id="actualRetirementBlock" hidden>
+                  <span>Tháng nghỉ hưu thực tế theo hồ sơ</span>
+                  <input id="actualRetirementMonth" name="actualRetirementMonth" type="month" />
+                  <small id="earliestMonthHint"></small>
+                </label>
 
-        <div id="specialBlock" class="subsection accent" hidden>
-          <h3>Thời gian thuộc nghề/công việc đặc thù</h3>
-          <div class="grid two compact">
-            <label>Số năm
-              <input name="specialYears" type="number" min="0" max="50" value="15" />
-            </label>
-            <label>Số tháng lẻ
-              <input name="specialMonths" type="number" min="0" max="11" value="0" />
-            </label>
+                <label class="check-field">
+                  <input id="minimumFloorEligible" name="minimumFloorEligible" type="checkbox" />
+                  <span>Kiểm tra điều kiện áp dụng mức lương hưu thấp nhất bằng mức tham chiếu (nhóm chuyển tiếp đủ điều kiện).</span>
+                </label>
+              </div>
+
+              <div class="form-grid four" id="specialBlock" hidden>
+                <label class="field">
+                  <span>Số năm làm nghề/công việc thuộc diện đặc thù</span>
+                  <input id="specialYears" name="specialYears" type="number" min="0" step="1" value="0" />
+                </label>
+                <label class="field">
+                  <span>Số tháng lẻ</span>
+                  <input id="specialMonths" name="specialMonths" type="number" min="0" max="11" step="1" value="0" />
+                </label>
+              </div>
+
+              <div class="form-grid four" id="impairmentBlock" hidden>
+                <label class="field">
+                  <span>Tỷ lệ suy giảm khả năng lao động (%)</span>
+                  <input id="impairmentPercent" name="impairmentPercent" type="number" min="0" max="100" step="1" value="0" />
+                </label>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section class="card">
+          <div class="section-heading history-heading">
+            <div>
+              <span class="step">02</span>
+              <h2>Quá trình đóng BHXH</h2>
+            </div>
+            <button class="button secondary" id="addPeriodBtn" type="button">+ Thêm giai đoạn</button>
           </div>
-        </div>
 
-        <div id="impairmentBlock" class="subsection accent" hidden>
-          <label>Tỷ lệ suy giảm khả năng lao động (%)
-            <input name="impairmentPercent" type="number" min="0" max="100" value="61" />
-          </label>
-        </div>
+          <div class="info-box">
+            Mỗi dòng là một giai đoạn có cùng mức đóng. Với lương Nhà nước, có thể nhập <strong>hệ số</strong> hoặc <strong>tiền đồng</strong>. Với lương do người sử dụng lao động quyết định và BHXH tự nguyện, nhập bằng <strong>VND/tháng</strong>.
+          </div>
 
-        <div class="subsection check-row">
-          <input id="minimumFloorEligible" name="minimumFloorEligible" type="checkbox" />
-          <label for="minimumFloorEligible"><strong>Áp dụng bảo đảm mức lương hưu tối thiểu bằng mức tham chiếu</strong><br><span>Chỉ tích nếu người lao động thuộc đúng nhóm tại Điều 13 Nghị định 158/2025/NĐ-CP, đã tham gia trước 01/07/2025 và có từ đủ 20 năm BHXH bắt buộc theo nhóm được quy định.</span></label>
-        </div>
+          <div class="table-wrap">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Từ tháng</th>
+                  <th>Đến tháng</th>
+                  <th>Chế độ tiền lương/thu nhập</th>
+                  <th>Cách nhập</th>
+                  <th>Giá trị đóng/tháng</th>
+                  <th>Ghi chú</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="periodRows"></tbody>
+            </table>
+          </div>
+          <p class="table-note">Nếu mức đóng thay đổi, hãy tách thành dòng mới. Hệ thống tự phát hiện tháng bị nhập trùng.</p>
+        </section>
 
-        <button class="cta" type="submit">Tính lương hưu</button>
+        <section class="card ai-card">
+          <div class="section-heading">
+            <div>
+              <span class="step">03</span>
+              <h2>Nhập tự động từ hồ sơ</h2>
+            </div>
+            <span class="ai-badge">ShopAIKey · GPT</span>
+          </div>
+
+          <div class="upload-grid">
+            <div>
+              <label class="dropzone" for="historyFile">
+                <strong>Chọn PDF, Word hoặc Excel</strong>
+                <span>Hỗ trợ .pdf, .doc, .docx, .xls, .xlsx, .csv, .txt · tối đa 12 MB</span>
+                <input id="historyFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
+              </label>
+            </div>
+            <div class="upload-actions">
+              <button class="button dark" type="button" id="importAiBtn">Đọc hồ sơ bằng AI</button>
+              <p>AI chỉ trích xuất ngày sinh, giới tính và các giai đoạn đóng. <strong>Engine pháp lý của web mới là nơi tính lương hưu.</strong></p>
+            </div>
+          </div>
+          <div id="importStatus" aria-live="polite"></div>
+        </section>
+
+        <div class="action-bar">
+          <div>
+            <strong>Kiểm tra dữ liệu trước khi tính.</strong>
+            <span>Kết quả có giải trình mức bình quân, tỷ lệ và các cảnh báo pháp lý.</span>
+          </div>
+          <button class="button primary" type="submit">Tính lương hưu</button>
+        </div>
       </form>
+
+      <section id="resultBox" class="card result-card" aria-live="polite">
+        <div class="empty-result">
+          <strong>Chưa có kết quả</strong>
+          <span>Nhập thông tin người lao động và quá trình đóng BHXH để bắt đầu.</span>
+        </div>
+      </section>
     </section>
 
-    <aside class="card legal-card">
-      <p class="step">CƠ SỞ PHÁP LÝ</p>
-      <h2>Công thức chính</h2>
-      <div class="formula"><b>Nữ</b><span>15 năm = 45%</span><span>+2% / năm tiếp theo</span><em>Tối đa 75%</em></div>
-      <div class="formula"><b>Nam</b><span>15 năm = 40%</span><span>15–&lt;20 năm: +1% / năm</span><span>20 năm = 45%; sau đó +2% / năm</span><em>Tối đa 75%</em></div>
-      <div class="formula"><b>Nghỉ do suy giảm KNLĐ</b><span>Mỗi năm nghỉ trước tuổi: −2%</span><span>Lẻ &lt;6 tháng: 0%; 6–&lt;12 tháng: −1%</span></div>
-      <hr />
-      <p class="legal-note">Công cụ này phục vụ tra cứu và ước tính, không thay thế quyết định giải quyết chế độ của cơ quan BHXH. Một số trường hợp đặc biệt như lực lượng vũ trang, nhiễm HIV do rủi ro nghề nghiệp, điều ước quốc tế hoặc hồ sơ chuyển tiếp cần xử lý riêng.</p>
-      <div class="sources">
-        <a href="https://xaydungchinhsach.chinhphu.vn/toan-van-luat-so-41-2024-qh15-bao-hiem-xa-hoi-119240723163650489.htm" target="_blank" rel="noreferrer">Luật BHXH 41/2024/QH15</a>
-        <a href="https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-158-2025-nd-cp-quy-dinh-ve-bao-hiem-xa-hoi-bat-buoc-119250629171336803.htm" target="_blank" rel="noreferrer">Nghị định 158/2025/NĐ-CP</a>
-        <a href="https://xaydungchinhsach.chinhphu.vn/tra-cuu-tuoi-nghi-huu-thoi-diem-nghi-huu-cua-nguoi-lao-dong-theo-nam-sinh-119241029170451525.htm" target="_blank" rel="noreferrer">Lộ trình tuổi nghỉ hưu</a>
-      </div>
+    <aside class="side-column">
+      <section class="card compact-card sticky-card">
+        <h3>Nguyên tắc của bản v2</h3>
+        <ol class="principles">
+          <li><strong>Không chọn loại BHXH ở đầu form.</strong> Từng giai đoạn tự mang thông tin chế độ đóng.</li>
+          <li><strong>Tuổi nghỉ hưu tự động.</strong> Không cho sửa thủ công ở trường hợp bình thường.</li>
+          <li><strong>Tính từ lịch sử đóng.</strong> Không yêu cầu người dùng tự nhập mức bình quân.</li>
+          <li><strong>AI không quyết định số tiền.</strong> AI chỉ đọc hồ sơ và trả dữ liệu có cấu trúc.</li>
+          <li><strong>Không giấu giả định.</strong> Thiếu hệ số tương lai hoặc hồ sơ đặc thù sẽ hiện cảnh báo.</li>
+        </ol>
+        <div class="security-note">
+          <strong>Bảo mật API key</strong>
+          <p>Khóa ShopAIKey chỉ đặt trong biến môi trường của server. Không nhúng khóa vào JavaScript trình duyệt hoặc GitHub Pages.</p>
+        </div>
+      </section>
     </aside>
-
-    <section id="resultBox" class="card result-card full">
-      <div class="empty-state"><p class="step">02</p><h2>Kết quả sẽ hiện ở đây</h2><p>Nhập thông tin và bấm “Tính lương hưu”.</p></div>
-    </section>
   </main>
 
-  <footer><div class="wrap">Mã nguồn mở · Thiết kế để triển khai bằng GitHub Pages · Phiên bản pháp lý: 11/09/2026</div></footer>
-  <script type="module" src="js/app.js"></script>
+  <footer class="shell footer">
+    Công cụ phục vụ tham khảo và kiểm tra sơ bộ. Kết quả chính thức phụ thuộc dữ liệu đóng BHXH được cơ quan BHXH ghi nhận và văn bản có hiệu lực tại thời điểm giải quyết.
+  </footer>
+
+  <template id="periodRowTemplate">
+    <tr class="period-row">
+      <td><input data-field="from" type="month" aria-label="Từ tháng" required /></td>
+      <td><input data-field="to" type="month" aria-label="Đến tháng" required /></td>
+      <td>
+        <select data-field="regime" aria-label="Chế độ tiền lương">
+          <option value="state">Lương do Nhà nước quy định</option>
+          <option value="employer">Lương do NSDLĐ quyết định</option>
+          <option value="voluntary">Thu nhập BHXH tự nguyện</option>
+          <option value="unknown">Chưa xác định — cần kiểm tra</option>
+        </select>
+      </td>
+      <td>
+        <select data-field="valueType" aria-label="Cách nhập">
+          <option value="coefficient">Hệ số</option>
+          <option value="vnd">Tiền đồng</option>
+        </select>
+      </td>
+      <td>
+        <input data-field="value" class="period-value" type="number" min="0" step="0.01" placeholder="VD: 4.98" aria-label="Giá trị đóng" required />
+        <small class="value-unit">hệ số</small>
+      </td>
+      <td><input data-field="note" type="text" maxlength="160" placeholder="Đơn vị/chức danh..." aria-label="Ghi chú" /></td>
+      <td><button class="icon-button remove-row" type="button" title="Xóa dòng" aria-label="Xóa dòng">×</button></td>
+    </tr>
+  </template>
+
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>

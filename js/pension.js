@@ -4,7 +4,8 @@ import {
 } from "./rules.js";
 
 export function ymToIndex(yyyyMm) {
-  const [y, m] = yyyyMm.split("-").map(Number);
+  const [y, m] = String(yyyyMm || "").split("-").map(Number);
+  if (!y || !m) return NaN;
   return y * 12 + (m - 1);
 }
 
@@ -32,6 +33,7 @@ export function roundContributionYears(totalMonths) {
 
 export function basePensionRate(sex, totalMonths) {
   const y = roundContributionYears(totalMonths);
+  if (y < 15) return 0;
 
   if (sex === "female") {
     return Math.min(75, 45 + Math.max(0, y - 15) * 2);
@@ -52,14 +54,14 @@ export function earlyRetirementReduction(earlyMonths) {
 }
 
 export function retirementAttainmentMonth(birthDate, sex, lowerByYears = 0) {
-  const birthYm = birthDate.slice(0, 7);
+  if (!birthDate || !sex) return null;
+  const birthYm = String(birthDate).slice(0, 7);
   const birthIndex = ymToIndex(birthYm);
+  if (!Number.isFinite(birthIndex)) return null;
 
-  // Quét theo từng tháng để bám đúng lộ trình tuổi theo từng năm.
-  // Quan trọng: tuổi thấp hơn 5/10 năm cũng phải tính theo lộ trình riêng,
-  // không lấy tháng nghỉ hưu thông thường rồi trừ cơ học 60/120 tháng.
+  // Quét theo tháng để tuổi nghỉ hưu bám đúng lộ trình của NĐ 135/2020/NĐ-CP.
   const startIndex = ymToIndex("2021-01");
-  const endIndex = ymToIndex("2045-12");
+  const endIndex = ymToIndex("2060-12");
 
   for (let idx = startIndex; idx <= endIndex; idx++) {
     const currentYm = indexToYm(idx);
@@ -80,6 +82,17 @@ export function pensionStartMonthFromStatutoryMonth(statMonth) {
   return statMonth ? addMonthsToYm(statMonth, 1) : null;
 }
 
+export function earliestRetirementMonthForCase(birthDate, sex, retirementCase) {
+  if (retirementCase === "heavy" || retirementCase === "impairment61") {
+    return retirementAttainmentMonth(birthDate, sex, 5);
+  }
+  if (retirementCase === "coal" || retirementCase === "impairment81") {
+    return retirementAttainmentMonth(birthDate, sex, 10);
+  }
+  if (retirementCase === "specialImpairment") return null;
+  return statutoryRetirementAttainmentMonth(birthDate, sex);
+}
+
 function caseReferenceMonth(input, statutoryMonth) {
   if (!statutoryMonth) return null;
   if (input.retirementCase === "specialImpairment") {
@@ -88,70 +101,54 @@ function caseReferenceMonth(input, statutoryMonth) {
   return statutoryMonth;
 }
 
-
 export function evaluateEligibility(input) {
-  const totalMonths = input.contributionYears * 12 + input.contributionMonths;
+  const totalMonths = Number(input.totalMonths || 0);
+  const compulsoryMonths = Number(input.compulsoryMonths || 0);
   const statutoryMonth = statutoryRetirementAttainmentMonth(input.birthDate, input.sex);
   const lower5Month = retirementAttainmentMonth(input.birthDate, input.sex, 5);
   const lower10Month = retirementAttainmentMonth(input.birthDate, input.sex, 10);
-  const earlyFromNormal = statutoryMonth
-    ? Math.max(0, monthsBetween(statutoryMonth, input.retirementMonth))
-    : 0;
-
   const errors = [];
   const notes = [];
   let eligible = true;
 
-  if (input.insuranceType === "voluntary") {
-    if (totalMonths < 180) {
-      eligible = false;
-      errors.push("BHXH tự nguyện cần tối thiểu 15 năm đóng BHXH.");
-    }
-    if (statutoryMonth && input.retirementMonth < statutoryMonth) {
-      eligible = false;
-      errors.push("BHXH tự nguyện chỉ hưởng lương hưu khi đủ tuổi nghỉ hưu theo lộ trình thông thường.");
-    }
-    return { eligible, errors, notes, totalMonths, statutoryMonth, caseEarliestMonth: statutoryMonth, penaltyReferenceMonth: statutoryMonth, earlyMonths: 0 };
+  if (totalMonths < 180) {
+    eligible = false;
+    errors.push("Tổng thời gian đóng BHXH chưa đủ 15 năm để hưởng lương hưu theo điều kiện thông thường của Luật BHXH 2024.");
   }
 
   switch (input.retirementCase) {
     case "normal":
-      if (totalMonths < 180) {
-        eligible = false;
-        errors.push("Cần tối thiểu 15 năm đóng BHXH bắt buộc.");
-      }
       if (statutoryMonth && input.retirementMonth < statutoryMonth) {
         eligible = false;
-        errors.push("Chưa đủ tuổi nghỉ hưu trong điều kiện lao động bình thường.");
+        errors.push("Tháng nghỉ hưu đang trước tháng đủ tuổi nghỉ hưu trong điều kiện lao động bình thường.");
       }
       break;
 
     case "heavy":
-      if (totalMonths < 180 || input.specialYears * 12 + input.specialMonths < 180) {
+      if (compulsoryMonths < 180 || input.specialMonthsTotal < 180) {
         eligible = false;
-        errors.push("Trường hợp nghề/công việc nặng nhọc hoặc vùng đặc biệt khó khăn cần ít nhất 15 năm đóng BHXH và 15 năm làm việc thuộc diện này.");
+        errors.push("Trường hợp nghề/công việc nặng nhọc hoặc vùng đặc biệt khó khăn cần tối thiểu 15 năm BHXH bắt buộc và 15 năm làm việc thuộc diện này.");
       }
       if (lower5Month && input.retirementMonth < lower5Month) {
         eligible = false;
-        errors.push("Tuổi nghỉ hưu thấp hơn quá 05 năm so với tuổi nghỉ hưu thông thường.");
+        errors.push("Tháng nghỉ hưu thấp hơn quá 05 tuổi so với lộ trình tuổi nghỉ hưu thông thường.");
       }
-      notes.push("Trường hợp thuộc Điều 64: nghỉ sớm theo tính chất nghề/công việc, không áp dụng giảm tỷ lệ theo Điều 66 khoản 3.");
+      notes.push("Trường hợp nghỉ theo Điều 64 do tính chất nghề/công việc không bị giảm tỷ lệ như nghỉ hưu do suy giảm khả năng lao động.");
       break;
 
     case "coal":
-      if (totalMonths < 180 || input.specialYears * 12 + input.specialMonths < 180) {
+      if (compulsoryMonths < 180 || input.specialMonthsTotal < 180) {
         eligible = false;
-        errors.push("Trường hợp khai thác than trong hầm lò cần ít nhất 15 năm đóng BHXH và 15 năm làm công việc này.");
+        errors.push("Trường hợp khai thác than trong hầm lò cần tối thiểu 15 năm BHXH bắt buộc và 15 năm làm công việc này.");
       }
       if (lower10Month && input.retirementMonth < lower10Month) {
         eligible = false;
-        errors.push("Tuổi nghỉ hưu thấp hơn quá 10 năm so với tuổi nghỉ hưu thông thường.");
+        errors.push("Tháng nghỉ hưu thấp hơn quá 10 tuổi so với lộ trình tuổi nghỉ hưu thông thường.");
       }
-      notes.push("Trường hợp thuộc Điều 64: không áp dụng giảm tỷ lệ do suy giảm khả năng lao động.");
       break;
 
     case "impairment61":
-      if (totalMonths < 240) {
+      if (compulsoryMonths < 240) {
         eligible = false;
         errors.push("Nghỉ hưu do suy giảm khả năng lao động cần tối thiểu 20 năm đóng BHXH bắt buộc.");
       }
@@ -161,12 +158,12 @@ export function evaluateEligibility(input) {
       }
       if (lower5Month && input.retirementMonth < lower5Month) {
         eligible = false;
-        errors.push("Nhóm suy giảm 61% đến dưới 81% chỉ được nghỉ ở tuổi thấp hơn tối đa 05 tuổi theo lộ trình.");
+        errors.push("Nhóm suy giảm từ 61% đến dưới 81% chỉ được nghỉ ở tuổi thấp hơn tối đa 05 tuổi theo lộ trình.");
       }
       break;
 
     case "impairment81":
-      if (totalMonths < 240) {
+      if (compulsoryMonths < 240) {
         eligible = false;
         errors.push("Nghỉ hưu do suy giảm khả năng lao động cần tối thiểu 20 năm đóng BHXH bắt buộc.");
       }
@@ -181,7 +178,7 @@ export function evaluateEligibility(input) {
       break;
 
     case "specialImpairment":
-      if (totalMonths < 240) {
+      if (compulsoryMonths < 240) {
         eligible = false;
         errors.push("Trường hợp suy giảm khả năng lao động cần tối thiểu 20 năm đóng BHXH bắt buộc.");
       }
@@ -189,11 +186,11 @@ export function evaluateEligibility(input) {
         eligible = false;
         errors.push("Trường hợp này yêu cầu suy giảm khả năng lao động từ 61% trở lên.");
       }
-      if (input.specialYears * 12 + input.specialMonths < 180) {
+      if (input.specialMonthsTotal < 180) {
         eligible = false;
         errors.push("Cần ít nhất 15 năm làm nghề/công việc đặc biệt nặng nhọc, độc hại, nguy hiểm.");
       }
-      notes.push("Mốc tính giảm tỷ lệ lấy theo tuổi nghỉ hưu thấp hơn của nhóm nghề/công việc tương ứng theo Nghị định 158/2025/NĐ-CP.");
+      notes.push("Đây là trường hợp đặc thù; tháng nghỉ thực tế cần nhập theo hồ sơ/điều kiện cụ thể để tính giảm trừ.");
       break;
 
     default:
@@ -207,12 +204,16 @@ export function evaluateEligibility(input) {
     ? Math.max(0, monthsBetween(penaltyReferenceMonth, input.retirementMonth))
     : 0;
 
-  let caseEarliestMonth = statutoryMonth;
-  if (["heavy", "impairment61"].includes(input.retirementCase)) caseEarliestMonth = lower5Month;
-  if (["coal", "impairment81"].includes(input.retirementCase)) caseEarliestMonth = lower10Month;
-  if (input.retirementCase === "specialImpairment") caseEarliestMonth = null;
-
-  return { eligible, errors, notes, totalMonths, statutoryMonth, caseEarliestMonth, penaltyReferenceMonth, earlyMonths };
+  return {
+    eligible,
+    errors: [...new Set(errors)],
+    notes,
+    totalMonths,
+    compulsoryMonths,
+    statutoryMonth,
+    earlyMonths,
+    caseEarliestMonth: earliestRetirementMonthForCase(input.birthDate, input.sex, input.retirementCase)
+  };
 }
 
 export function calculatePension(input) {
@@ -222,13 +223,14 @@ export function calculatePension(input) {
     ? earlyRetirementReduction(eligibility.earlyMonths)
     : 0;
   const finalRate = Math.max(0, Math.min(75, baseRate - reduction));
-  const rawMonthly = input.averageBase * finalRate / 100;
+  const rawMonthly = Number(input.averageBase || 0) * finalRate / 100;
 
-  const referenceLevel = referenceLevelForMonth(input.retirementMonth);
+  const pensionStartMonth = input.retirementMonth ? addMonthsToYm(input.retirementMonth, 1) : null;
+  const referenceLevel = referenceLevelForMonth(pensionStartMonth || input.retirementMonth);
   const floorApplicable = Boolean(
     input.minimumFloorEligible &&
-    input.insuranceType === "compulsory" &&
-    eligibility.totalMonths >= 240
+    input.firstCompulsoryYm && input.firstCompulsoryYm < "2025-07" &&
+    eligibility.compulsoryMonths >= 240
   );
   const monthlyPension = floorApplicable ? Math.max(rawMonthly, referenceLevel) : rawMonthly;
 
@@ -242,6 +244,6 @@ export function calculatePension(input) {
     referenceLevel,
     floorApplicable,
     monthlyPension,
-    pensionStartMonth: input.retirementMonth ? addMonthsToYm(input.retirementMonth, 1) : null
+    pensionStartMonth
   };
 }
