@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Công cụ ước tính lương hưu Việt Nam theo Luật BHXH 2024, áp dụng từ 01/07/2025." />
+  <title>Tính lương hưu Việt Nam — Luật BHXH 2024</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow">CÔNG CỤ THAM KHẢO · BHXH VIỆT NAM</p>
+      <h1>Tính lương hưu theo Luật BHXH 2024</h1>
+      <p class="lead">Ước tính điều kiện, tỷ lệ hưởng và lương hưu hằng tháng. Công thức được tách thành module để dễ kiểm thử và cập nhật khi chính sách thay đổi.</p>
+      <p id="lawVersion" class="law-version"></p>
+    </div>
+  </header>
+
+  <main class="wrap layout">
+    <section class="card form-card">
+      <div class="section-head">
+        <div><p class="step">01</p><h2>Nhập thông tin</h2></div>
+        <span class="badge">Không lưu dữ liệu</span>
+      </div>
+
+      <form id="calculatorForm">
+        <div class="grid two">
+          <label>Loại BHXH
+            <select id="insuranceType" name="insuranceType">
+              <option value="compulsory">BHXH bắt buộc</option>
+              <option value="voluntary">BHXH tự nguyện</option>
+            </select>
+          </label>
+          <label>Giới tính
+            <select name="sex">
+              <option value="male">Nam</option>
+              <option value="female">Nữ</option>
+            </select>
+          </label>
+          <label>Ngày sinh
+            <input name="birthDate" type="date" required />
+          </label>
+          <label>Tháng dự kiến nghỉ hưu
+            <input name="retirementMonth" type="month" min="2025-07" required />
+          </label>
+        </div>
+
+        <div class="subsection">
+          <h3>Thời gian đã đóng BHXH</h3>
+          <div class="grid two compact">
+            <label>Số năm
+              <input name="contributionYears" type="number" min="0" max="60" value="20" required />
+            </label>
+            <label>Số tháng lẻ
+              <input name="contributionMonths" type="number" min="0" max="11" value="0" required />
+            </label>
+          </div>
+          <p class="hint">Điều kiện tối thiểu tính theo tháng thực tế. Khi tính mức hưởng: 1–6 tháng lẻ = 0,5 năm; 7–11 tháng lẻ = 1 năm.</p>
+        </div>
+
+        <div class="subsection">
+          <label>Mức bình quân tiền lương/thu nhập làm căn cứ tính lương hưu
+            <div class="money-input"><input id="averageBase" name="averageBase" inputmode="numeric" placeholder="Ví dụ: 12.000.000" required /><span>VNĐ/tháng</span></div>
+          </label>
+          <p class="hint">Bản v1 yêu cầu nhập mức bình quân đã xác định/điều chỉnh theo hồ sơ BHXH. Không lấy lương hiện tại thay cho mức bình quân nếu hai số khác nhau.</p>
+        </div>
+
+        <div class="subsection">
+          <label>Trường hợp nghỉ hưu
+            <select id="retirementCase" name="retirementCase">
+              <option value="normal">Đủ tuổi trong điều kiện bình thường</option>
+              <option value="heavy">Nghề nặng nhọc/độc hại hoặc vùng đặc biệt khó khăn — Điều 64</option>
+              <option value="coal">Khai thác than trong hầm lò — Điều 64</option>
+              <option value="impairment61">Suy giảm KNLĐ từ 61% đến dưới 81% — Điều 65</option>
+              <option value="impairment81">Suy giảm KNLĐ từ 81% trở lên — Điều 65</option>
+              <option value="specialImpairment">Đặc biệt nặng nhọc + suy giảm KNLĐ ≥61% — Điều 65</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="specialBlock" class="subsection accent" hidden>
+          <h3>Thời gian thuộc nghề/công việc đặc thù</h3>
+          <div class="grid two compact">
+            <label>Số năm
+              <input name="specialYears" type="number" min="0" max="50" value="15" />
+            </label>
+            <label>Số tháng lẻ
+              <input name="specialMonths" type="number" min="0" max="11" value="0" />
+            </label>
+          </div>
+        </div>
+
+        <div id="impairmentBlock" class="subsection accent" hidden>
+          <label>Tỷ lệ suy giảm khả năng lao động (%)
+            <input name="impairmentPercent" type="number" min="0" max="100" value="61" />
+          </label>
+        </div>
+
+        <div class="subsection check-row">
+          <input id="minimumFloorEligible" name="minimumFloorEligible" type="checkbox" />
+          <label for="minimumFloorEligible"><strong>Áp dụng bảo đảm mức lương hưu tối thiểu bằng mức tham chiếu</strong><br><span>Chỉ tích nếu người lao động thuộc đúng nhóm tại Điều 13 Nghị định 158/2025/NĐ-CP, đã tham gia trước 01/07/2025 và có từ đủ 20 năm BHXH bắt buộc theo nhóm được quy định.</span></label>
+        </div>
+
+        <button class="cta" type="submit">Tính lương hưu</button>
+      </form>
+    </section>
+
+    <aside class="card legal-card">
+      <p class="step">CƠ SỞ PHÁP LÝ</p>
+      <h2>Công thức chính</h2>
+      <div class="formula"><b>Nữ</b><span>15 năm = 45%</span><span>+2% / năm tiếp theo</span><em>Tối đa 75%</em></div>
+      <div class="formula"><b>Nam</b><span>15 năm = 40%</span><span>15–&lt;20 năm: +1% / năm</span><span>20 năm = 45%; sau đó +2% / năm</span><em>Tối đa 75%</em></div>
+      <div class="formula"><b>Nghỉ do suy giảm KNLĐ</b><span>Mỗi năm nghỉ trước tuổi: −2%</span><span>Lẻ &lt;6 tháng: 0%; 6–&lt;12 tháng: −1%</span></div>
+      <hr />
+      <p class="legal-note">Công cụ này phục vụ tra cứu và ước tính, không thay thế quyết định giải quyết chế độ của cơ quan BHXH. Một số trường hợp đặc biệt như lực lượng vũ trang, nhiễm HIV do rủi ro nghề nghiệp, điều ước quốc tế hoặc hồ sơ chuyển tiếp cần xử lý riêng.</p>
+      <div class="sources">
+        <a href="https://xaydungchinhsach.chinhphu.vn/toan-van-luat-so-41-2024-qh15-bao-hiem-xa-hoi-119240723163650489.htm" target="_blank" rel="noreferrer">Luật BHXH 41/2024/QH15</a>
+        <a href="https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-158-2025-nd-cp-quy-dinh-ve-bao-hiem-xa-hoi-bat-buoc-119250629171336803.htm" target="_blank" rel="noreferrer">Nghị định 158/2025/NĐ-CP</a>
+        <a href="https://xaydungchinhsach.chinhphu.vn/tra-cuu-tuoi-nghi-huu-thoi-diem-nghi-huu-cua-nguoi-lao-dong-theo-nam-sinh-119241029170451525.htm" target="_blank" rel="noreferrer">Lộ trình tuổi nghỉ hưu</a>
+      </div>
+    </aside>
+
+    <section id="resultBox" class="card result-card full">
+      <div class="empty-state"><p class="step">02</p><h2>Kết quả sẽ hiện ở đây</h2><p>Nhập thông tin và bấm “Tính lương hưu”.</p></div>
+    </section>
+  </main>
+
+  <footer><div class="wrap">Mã nguồn mở · Thiết kế để triển khai bằng GitHub Pages · Phiên bản pháp lý: 11/09/2026</div></footer>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
