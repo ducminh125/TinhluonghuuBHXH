@@ -27,6 +27,15 @@ Trả về DUY NHẤT một JSON object theo cấu trúc:
   "warnings":["..."]
 }
 
+Các trường cần ưu tiên nhận diện từ hồ sơ:
+- person.birthDate và person.sex nếu tài liệu có thông tin cá nhân;
+- from/to của từng giai đoạn (tháng/năm);
+- regime để xác định nhóm tiền lương/thu nhập;
+- valueType và một trong hai trường coefficient hoặc amountVnd;
+- các phụ cấp thuộc căn cứ đóng nếu tài liệu tách riêng;
+- ngạch, bậc, chức danh, đơn vị công tác hoặc nguồn dữ liệu thì ghi ngắn gọn vào note.
+Nếu một giai đoạn thiếu from, to hoặc thiếu mức lương/hệ số làm căn cứ đóng thì KHÔNG tự suy đoán. Vẫn ghi warning mô tả chính xác phần còn thiếu để người dùng bổ sung.
+
 Quy tắc trích xuất:
 1. Mỗi khoảng liên tục có cùng mức đóng phải là một period riêng.
 2. Khi nhiều ảnh/tệp lặp lại cùng tháng, chỉ trả một lần nếu số liệu giống nhau. Nếu cùng tháng có số liệu khác nhau, giữ dữ liệu rõ nhất và thêm warning nêu tháng cần đối chiếu.

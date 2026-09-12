@@ -1,6 +1,6 @@
-# VN Pension Calculator v2.1
+# VN Pension Calculator v2.2
 
-Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024, thiết kế theo nguyên tắc **AI chỉ đọc hồ sơ — engine pháp lý mới thực hiện phép tính**.
+Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024. Dữ liệu hồ sơ có thể được nhập trực tiếp hoặc trích xuất từ ảnh/PDF/Word/Excel; phép tính lương hưu được thực hiện bởi engine quy tắc trong source code.
 
 > Công cụ dùng để tham khảo, kiểm tra và mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH ghi nhận và văn bản có hiệu lực tại thời điểm giải quyết chế độ.
 
@@ -8,7 +8,7 @@ Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024
 
 - Tự xác định **tháng dự kiến nghỉ hưu** từ ngày sinh + giới tính theo lộ trình tuổi nghỉ hưu.
 - Không bắt người dùng chọn một loại BHXH chung ở đầu form; chế độ được xác định theo **từng giai đoạn đóng**.
-- Nhập quá trình đóng theo `Từ tháng → Đến tháng`, bằng **hệ số** hoặc **VND/tháng**.
+- Nhập quá trình đóng theo `Từ tháng → Đến tháng`, bằng **hệ số** hoặc **VND/tháng**. Giao diện dùng định dạng Việt Nam: ngày `dd/mm/yyyy`, tháng `mm/yyyy`.
 - Tính mức bình quân từ lịch sử đóng thay vì yêu cầu người dùng tự nhập mức bình quân.
 - Cho phép nhập các khoản **phụ cấp/khoản bổ sung thuộc căn cứ đóng BHXH** trước khi tính bình quân.
 - Import đồng thời nhiều **JPG / PNG / WEBP / PDF / Word / Excel / CSV / TXT**.
@@ -82,7 +82,26 @@ Không nên nhập các khoản chỉ phụ thuộc biến động năng suất/
 
 ## 4. Import nhiều ảnh/tệp và chống trùng
 
-Frontend cho phép chọn tối đa 20 tệp trong một lần import. Backend đọc toàn bộ nguồn trong cùng một request để model có ngữ cảnh giữa các ảnh.
+Phần import được đặt ngay trong **mục 2 - Quá trình đóng BHXH** để người dùng có thể chọn nhập tay hoặc nhập từ file. Frontend cho phép chọn tối đa 20 tệp trong một lần import. Backend đọc toàn bộ nguồn trong cùng một request để có ngữ cảnh giữa các ảnh.
+
+### Trường dữ liệu nên có trong file gửi kèm
+
+Tối thiểu để tạo được một giai đoạn đóng hợp lệ, hồ sơ cần thể hiện:
+
+- từ tháng/năm và đến tháng/năm;
+- loại tiền lương/thu nhập hoặc dấu hiệu đủ để xác định nhóm lương Nhà nước, lương do người sử dụng lao động quyết định hay BHXH tự nguyện;
+- mức lương đóng bằng **hệ số** hoặc **VND/tháng**;
+- nếu hồ sơ tách riêng phụ cấp thuộc căn cứ đóng thì cần thể hiện tên/mức phụ cấp.
+
+Nên có thêm, nếu tài liệu thể hiện:
+
+- ngày sinh, giới tính;
+- phụ cấp chức vụ, thâm niên vượt khung, thâm niên nghề, chênh lệch bảo lưu;
+- phụ cấp/khoản bổ sung ổn định thuộc căn cứ đóng đối với lương doanh nghiệp;
+- ngạch, bậc, chức danh và đơn vị công tác để phục vụ kiểm tra và dự báo nâng bậc;
+- tiêu đề cột trên mỗi ảnh/bảng. Với nhiều ảnh chụp liên tiếp, nên giữ một phần giao nhau giữa hai ảnh để hệ thống ghép và lọc trùng.
+
+Nếu hồ sơ đã ghi **tổng tiền lương làm căn cứ đóng BHXH**, hệ thống dùng tổng đó và không cộng phụ cấp lần nữa. Nếu hồ sơ tách lương chính và phụ cấp, hai phần được lưu riêng rồi cộng trước khi tính bình quân.
 
 Sau bước trích xuất, dữ liệu được đưa qua `dedupeImportedPeriods()`:
 

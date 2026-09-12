@@ -43,18 +43,19 @@
 
             <label class="field">
               <span>Ngày sinh</span>
-              <input id="birthDate" name="birthDate" type="date" required />
+              <input id="birthDate" name="birthDate" type="text" inputmode="numeric" autocomplete="bday" placeholder="dd/mm/yyyy" maxlength="10" required />
+              <small>Nhập theo dạng ngày/tháng/năm, ví dụ 15/08/1970.</small>
             </label>
 
             <label class="field readonly-field">
               <span>Tháng dự kiến nghỉ hưu</span>
-              <input id="statutoryRetirementMonth" type="month" readonly />
+              <input id="statutoryRetirementMonth" type="text" inputmode="numeric" placeholder="mm/yyyy" readonly />
               <small>Tự động theo lộ trình tuổi nghỉ hưu.</small>
             </label>
 
             <label class="field readonly-field">
               <span>Tháng bắt đầu hưởng lương hưu</span>
-              <input id="statutoryPensionStart" type="month" readonly />
+              <input id="statutoryPensionStart" type="text" inputmode="numeric" placeholder="mm/yyyy" readonly />
               <small>Tháng liền kề sau tháng nghỉ hưu.</small>
             </label>
           </div>
@@ -77,7 +78,7 @@
 
                 <label class="field" id="actualRetirementBlock" hidden>
                   <span>Tháng nghỉ hưu thực tế theo hồ sơ</span>
-                  <input id="actualRetirementMonth" name="actualRetirementMonth" type="month" />
+                  <input id="actualRetirementMonth" name="actualRetirementMonth" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" />
                   <small id="earliestMonthHint"></small>
                 </label>
 
@@ -118,7 +119,14 @@
           </div>
 
           <div class="info-box">
-            Mỗi dòng là một giai đoạn có cùng mức đóng. Với lương Nhà nước theo hệ số, mở <strong>“Phụ cấp tính đóng”</strong> để nhập phụ cấp chức vụ, thâm niên vượt khung, thâm niên nghề và chênh lệch bảo lưu. Với lương doanh nghiệp, có thể nhập riêng phụ cấp/khoản bổ sung ổn định nếu mức lương chính chưa bao gồm các khoản đó.
+            Có thể <strong>nhập trực tiếp</strong> từng giai đoạn hoặc <strong>tải file/ảnh để hệ thống tự điền</strong>. Mỗi giai đoạn cần xác định được thời gian từ tháng đến tháng, chế độ tiền lương, cách ghi mức đóng và các phụ cấp thuộc căn cứ đóng BHXH nếu có.
+          </div>
+
+          <div class="entry-method-heading">
+            <div>
+              <strong>Cách 1 · Nhập trực tiếp quá trình đóng</strong>
+              <span>Ngày dùng dạng <b>dd/mm/yyyy</b>; tháng dùng dạng <b>mm/yyyy</b>.</span>
+            </div>
           </div>
 
           <div class="table-wrap">
@@ -140,6 +148,50 @@
           </div>
           <p class="table-note">Nếu nguồn dữ liệu đã ghi <strong>tổng tiền lương làm căn cứ đóng BHXH</strong> bằng VND thì nhập tổng số đó ở cột “Lương/thu nhập” và để phụ cấp VND bằng 0 để tránh cộng hai lần.</p>
 
+          <div class="file-import-block">
+            <div class="entry-method-heading">
+              <div>
+                <strong>Cách 2 · Nhập từ ảnh hoặc file hồ sơ</strong>
+                <span>Hỗ trợ nhiều ảnh chụp, PDF, Word, Excel, CSV và TXT. Có thể gửi nhiều tệp trong cùng một lần đọc.</span>
+              </div>
+            </div>
+
+            <div class="data-requirements">
+              <strong>Để hệ thống điền đủ dữ liệu, file gửi kèm nên thể hiện các trường sau:</strong>
+              <div class="requirements-grid">
+                <ul>
+                  <li><b>Thông tin cá nhân:</b> ngày sinh, giới tính (nếu có trong hồ sơ).</li>
+                  <li><b>Thời gian đóng:</b> từ tháng/năm đến tháng/năm của từng giai đoạn.</li>
+                  <li><b>Loại tiền lương/thu nhập:</b> lương Nhà nước, lương do người sử dụng lao động quyết định hoặc BHXH tự nguyện.</li>
+                  <li><b>Mức lương đóng:</b> hệ số lương hoặc số tiền VND/tháng; ưu tiên cột “mức tiền lương/thu nhập làm căn cứ đóng BHXH”.</li>
+                </ul>
+                <ul>
+                  <li><b>Phụ cấp tính đóng nếu có:</b> phụ cấp chức vụ, thâm niên vượt khung, thâm niên nghề, chênh lệch bảo lưu hoặc các khoản bổ sung thuộc căn cứ đóng.</li>
+                  <li><b>Ngạch/bậc/chức danh:</b> nếu hồ sơ có ghi, nên để nhìn rõ để phục vụ kiểm tra và dự báo nâng bậc.</li>
+                  <li><b>Đơn vị và ghi chú:</b> tên đơn vị, chức danh hoặc thông tin giúp phân biệt các giai đoạn.</li>
+                  <li><b>Ảnh nhiều trang:</b> nên chụp đủ tiêu đề cột và phần giao nhau giữa hai ảnh; hệ thống sẽ tự lọc tháng bị chụp trùng.</li>
+                </ul>
+              </div>
+              <p>Nếu file chỉ có <strong>tổng tiền lương làm căn cứ đóng BHXH</strong>, hệ thống dùng trực tiếp tổng đó và không cộng phụ cấp lần nữa. Nếu file tách lương chính và phụ cấp, hệ thống sẽ nhập riêng từng phần trước khi tính bình quân.</p>
+            </div>
+
+            <div class="upload-grid">
+              <div>
+                <label class="dropzone" for="historyFiles">
+                  <strong>Chọn một hoặc nhiều ảnh, PDF, Word hoặc Excel</strong>
+                  <span>Ảnh: JPG, PNG, WEBP · Hồ sơ: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT · tối đa 20 tệp</span>
+                  <input id="historyFiles" type="file" multiple accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
+                </label>
+                <div id="selectedFiles" class="selected-files"></div>
+              </div>
+              <div class="upload-actions">
+                <button class="button dark" type="button" id="importAiBtn">Đọc và điền dữ liệu từ file</button>
+                <p>Hệ thống đọc chung các tệp, ghép quá trình đóng, tự loại tháng trùng hệt nhau do ảnh chụp gối trang và cảnh báo khi cùng tháng có số liệu khác nhau.</p>
+              </div>
+            </div>
+            <div id="importStatus" aria-live="polite"></div>
+          </div>
+
           <div class="forecast-panel">
             <label class="forecast-toggle">
               <input id="autoExtend" type="checkbox" />
@@ -153,7 +205,7 @@
               <div id="coefficientForecastFields" class="form-grid four">
                 <label class="field">
                   <span>Tháng bắt đầu hưởng bậc hiện tại</span>
-                  <input id="gradeStartMonth" type="month" />
+                  <input id="gradeStartMonth" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" />
                   <small>Làm căn cứ xác định kỳ xét nâng bậc tiếp theo.</small>
                 </label>
                 <label class="field">
@@ -177,31 +229,6 @@
               <div id="forecastPreview" class="forecast-preview"></div>
             </div>
           </div>
-        </section>
-
-        <section class="card ai-card">
-          <div class="section-heading">
-            <div>
-              <span class="step">03</span>
-              <h2>Nhập tự động từ hồ sơ / ảnh chụp</h2>
-            </div>
-          </div>
-
-          <div class="upload-grid">
-            <div>
-              <label class="dropzone" for="historyFiles">
-                <strong>Chọn một hoặc nhiều ảnh, PDF, Word hoặc Excel</strong>
-                <span>Ảnh: JPG, PNG, WEBP · Hồ sơ: PDF, DOC, DOCX, XLS, XLSX, CSV, TXT · tối đa 20 tệp</span>
-                <input id="historyFiles" type="file" multiple accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" />
-              </label>
-              <div id="selectedFiles" class="selected-files"></div>
-            </div>
-            <div class="upload-actions">
-              <button class="button dark" type="button" id="importAiBtn">Đọc hồ sơ bằng AI</button>
-              <p>Hệ thống ghép dữ liệu từ nhiều ảnh/tệp, tự loại các tháng trùng hệt nhau do ảnh chụp gối trang và cảnh báo nếu cùng tháng xuất hiện số liệu khác nhau.</p>
-            </div>
-          </div>
-          <div id="importStatus" aria-live="polite"></div>
         </section>
 
         <div class="action-bar">
@@ -232,10 +259,7 @@
           <li><strong>Nâng bậc dự kiến:</strong> chu kỳ 24/36/60 tháng được dùng để mô phỏng theo quy định về nâng bậc thường xuyên; việc thực tế được nâng bậc còn phụ thuộc ngạch/chức danh, tiêu chuẩn và quyết định của cơ quan có thẩm quyền.</li>
           <li><strong>Mức lương cơ sở:</strong> tự áp dụng các mốc đã tích hợp; từ 01/07/2026 là 2.530.000 đồng/tháng.</li>
         </ol>
-        <div class="security-note">
-          <strong>Nguyên tắc sử dụng AI</strong>
-          <p>AI chỉ đọc và chuẩn hóa hồ sơ. Phép tính lương hưu được thực hiện bằng các hàm quy tắc cố định trong source code; API key chỉ đặt ở backend.</p>
-        </div>
+
       </section>
     </aside>
   </main>
@@ -246,8 +270,8 @@
 
   <template id="periodRowTemplate">
     <tr class="period-row">
-      <td><input data-field="from" type="month" aria-label="Từ tháng" required /></td>
-      <td><input data-field="to" type="month" aria-label="Đến tháng" required /></td>
+      <td><input data-field="from" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" aria-label="Từ tháng" required /></td>
+      <td><input data-field="to" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" aria-label="Đến tháng" required /></td>
       <td>
         <select data-field="regime" aria-label="Chế độ tiền lương">
           <option value="state">Lương do Nhà nước quy định</option>

@@ -36,6 +36,54 @@ function displayMonth(ym) {
   return `${ym.slice(5, 7)}/${ym.slice(0, 4)}`;
 }
 
+function displayDate(isoDate) {
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return "";
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function parseVietnameseDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const compact = raw.replace(/\D/g, "");
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  const parts = match ? [match[1], match[2], match[3]] : (compact.length === 8 ? [compact.slice(0, 2), compact.slice(2, 4), compact.slice(4)] : null);
+  if (!parts) return "";
+  const day = Number(parts[0]);
+  const month = Number(parts[1]);
+  const year = Number(parts[2]);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return "";
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function parseVietnameseMonth(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) return raw;
+  const compact = raw.replace(/\D/g, "");
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{4})$/);
+  const parts = match ? [match[1], match[2]] : (compact.length === 6 ? [compact.slice(0, 2), compact.slice(2)] : null);
+  if (!parts) return "";
+  const month = Number(parts[0]);
+  const year = Number(parts[1]);
+  if (month < 1 || month > 12 || year < 1900 || year > 2200) return "";
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+}
+
+function normalizeDateField(el) {
+  if (!el?.value) return;
+  const iso = parseVietnameseDate(el.value);
+  if (iso) el.value = displayDate(iso);
+}
+
+function normalizeMonthField(el) {
+  if (!el?.value) return;
+  const ym = parseVietnameseMonth(el.value);
+  if (ym) el.value = displayMonth(ym);
+}
+
 function valueLabel(regime, valueType) {
   if (regime === "state" && valueType === "coefficient") {
     return { placeholder: "VD: 4.98", unit: "hệ số lương", step: "0.01" };
@@ -90,12 +138,19 @@ function setRowValue(tr, field, value) {
   if (el && value != null && value !== "") el.value = value;
 }
 
+function setRowMonthValue(tr, field, value) {
+  const el = tr.querySelector(`[data-field="${field}"]`);
+  if (!el || value == null || value === "") return;
+  const ym = parseVietnameseMonth(value);
+  el.value = ym ? displayMonth(ym) : value;
+}
+
 function addPeriodRow(data = {}) {
   const fragment = rowTemplate.content.cloneNode(true);
   const tr = fragment.querySelector("tr");
 
-  setRowValue(tr, "from", data.from);
-  setRowValue(tr, "to", data.to);
+  setRowMonthValue(tr, "from", data.from);
+  setRowMonthValue(tr, "to", data.to);
   setRowValue(tr, "regime", data.regime || "state");
   setRowValue(tr, "valueType", data.valueType || (data.regime === "state" ? "coefficient" : "vnd"));
   setRowValue(tr, "value", data.valueType === "coefficient" ? data.coefficient : data.amountVnd);
@@ -110,6 +165,13 @@ function addPeriodRow(data = {}) {
   tr.querySelector('[data-field="valueType"]').addEventListener("change", () => syncPeriodRow(tr));
   tr.querySelectorAll("input,select").forEach(el => {
     if (!["regime", "valueType"].includes(el.dataset.field)) el.addEventListener("change", updateForecastPreview);
+  });
+  ["from", "to"].forEach(field => {
+    const el = tr.querySelector(`[data-field="${field}"]`);
+    el?.addEventListener("blur", () => {
+      normalizeMonthField(el);
+      updateForecastPreview();
+    });
   });
   tr.querySelector(".remove-row").addEventListener("click", () => {
     tr.remove();
@@ -129,8 +191,8 @@ function getPeriods({ includeBlank = true } = {}) {
     const valueType = get("valueType");
     const numericValue = Number(get("value") || 0);
     return {
-      from: get("from"),
-      to: get("to"),
+      from: parseVietnameseMonth(get("from")),
+      to: parseVietnameseMonth(get("to")),
       regime,
       valueType,
       coefficient: valueType === "coefficient" ? numericValue : null,
@@ -150,21 +212,22 @@ function getPeriods({ includeBlank = true } = {}) {
 
 function getRetirementMonth() {
   const retirementCase = $("retirementCase").value;
-  return retirementCase === "normal" ? $("statutoryRetirementMonth").value : $("actualRetirementMonth").value;
+  const value = retirementCase === "normal" ? $("statutoryRetirementMonth").value : $("actualRetirementMonth").value;
+  return parseVietnameseMonth(value);
 }
 
 function updateRetirementDates({ resetSpecial = false } = {}) {
   const sex = $("sex").value;
-  const birthDate = $("birthDate").value;
+  const birthDate = parseVietnameseDate($("birthDate").value);
   const statutory = sex && birthDate ? statutoryRetirementAttainmentMonth(birthDate, sex) : null;
-  $("statutoryRetirementMonth").value = statutory || "";
-  $("statutoryPensionStart").value = statutory ? pensionStartMonthFromStatutoryMonth(statutory) : "";
+  $("statutoryRetirementMonth").value = statutory ? displayMonth(statutory) : "";
+  $("statutoryPensionStart").value = statutory ? displayMonth(pensionStartMonthFromStatutoryMonth(statutory)) : "";
 
   const retirementCase = $("retirementCase").value;
   if (retirementCase !== "normal" && sex && birthDate) {
     const earliest = earliestRetirementMonthForCase(birthDate, sex, retirementCase);
     const actual = $("actualRetirementMonth");
-    if (resetSpecial || !actual.value) actual.value = earliest || statutory || "";
+    if (resetSpecial || !actual.value) actual.value = displayMonth(earliest || statutory || "");
     $("earliestMonthHint").textContent = earliest
       ? `Mốc tuổi sớm nhất theo nhóm đã chọn: ${displayMonth(earliest)}. Điều kiện thời gian đóng vẫn phải được kiểm tra.`
       : "Trường hợp này không thể xác định chỉ từ ngày sinh; cần nhập tháng nghỉ thực tế theo hồ sơ.";
@@ -182,7 +245,7 @@ function updateRetirementCase() {
 
 function forecastOptions() {
   return {
-    gradeStartMonth: $("gradeStartMonth").value,
+    gradeStartMonth: parseVietnameseMonth($("gradeStartMonth").value),
     raiseCadenceMonths: Number($("raiseCadenceMonths").value || 0),
     coefficientStep: Number($("coefficientStep").value || 0),
     maxCoefficient: Number($("maxCoefficient").value || 0)
@@ -232,8 +295,11 @@ function updateForecastPreview() {
 
 $("sex").addEventListener("change", () => updateRetirementDates({ resetSpecial: true }));
 $("birthDate").addEventListener("change", () => updateRetirementDates({ resetSpecial: true }));
+$("birthDate").addEventListener("blur", () => { normalizeDateField($("birthDate")); updateRetirementDates({ resetSpecial: true }); });
 $("retirementCase").addEventListener("change", updateRetirementCase);
 $("actualRetirementMonth").addEventListener("change", updateForecastPreview);
+$("actualRetirementMonth").addEventListener("blur", () => { normalizeMonthField($("actualRetirementMonth")); updateForecastPreview(); });
+$("gradeStartMonth").addEventListener("blur", () => { normalizeMonthField($("gradeStartMonth")); updateForecastPreview(); });
 $("addPeriodBtn").addEventListener("click", () => addPeriodRow());
 $("autoExtend").addEventListener("change", updateForecastPreview);
 ["gradeStartMonth", "raiseCadenceMonths", "coefficientStep", "maxCoefficient"].forEach(id => $(id).addEventListener("change", updateForecastPreview));
@@ -280,7 +346,7 @@ $("importAiBtn").addEventListener("click", async () => {
     if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
 
     if (payload.person?.sex && !$("sex").value) $("sex").value = payload.person.sex;
-    if (payload.person?.birthDate && !$("birthDate").value) $("birthDate").value = payload.person.birthDate;
+    if (payload.person?.birthDate && !$("birthDate").value) $("birthDate").value = displayDate(payload.person.birthDate);
     updateRetirementDates({ resetSpecial: true });
 
     const existing = getPeriods({ includeBlank: false });
@@ -307,7 +373,7 @@ $("importAiBtn").addEventListener("click", async () => {
     setImportStatus("error", `<strong>Không nhập được hồ sơ:</strong> ${escapeHtml(error.message)}.${extra}`);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Đọc hồ sơ bằng AI";
+    btn.textContent = "Đọc và điền dữ liệu từ file";
   }
 });
 
@@ -380,17 +446,17 @@ form.addEventListener("submit", event => {
   event.preventDefault();
 
   const sex = $("sex").value;
-  const birthDate = $("birthDate").value;
+  const birthDate = parseVietnameseDate($("birthDate").value);
   const retirementCase = $("retirementCase").value;
-  const statutoryMonth = $("statutoryRetirementMonth").value;
+  const statutoryMonth = parseVietnameseMonth($("statutoryRetirementMonth").value);
   const retirementMonth = getRetirementMonth();
 
   if (!sex || !birthDate || !statutoryMonth) {
-    resultBox.innerHTML = `<div class="alert error">Vui lòng nhập giới tính và ngày sinh hợp lệ để hệ thống xác định tháng nghỉ hưu.</div>`;
+    resultBox.innerHTML = `<div class="alert error">Vui lòng nhập giới tính và ngày sinh hợp lệ theo dạng <strong>dd/mm/yyyy</strong> để hệ thống xác định tháng nghỉ hưu.</div>`;
     return;
   }
   if (!retirementMonth) {
-    resultBox.innerHTML = `<div class="alert error">Trường hợp nghỉ hưu đặc thù cần có tháng nghỉ hưu thực tế theo hồ sơ.</div>`;
+    resultBox.innerHTML = `<div class="alert error">Trường hợp nghỉ hưu đặc thù cần có tháng nghỉ hưu thực tế theo dạng <strong>mm/yyyy</strong>.</div>`;
     return;
   }
 
