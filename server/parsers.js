@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import WordExtractor from "word-extractor";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { createCanvas } from "@napi-rs/canvas";
+import { tryParseBhxhWorkbook } from "./structured-bhxh.js";
 
 const MAX_TEXT = 70000;
 const MAX_PDF_PAGES = 8;
@@ -95,6 +96,7 @@ export async function parseUploadedFile(file) {
   const ext = path.extname(file.originalname || "").toLowerCase();
   let text = "";
   let images = [];
+  let structured = null;
   const warnings = [];
 
   if (IMAGE_EXTENSIONS.has(ext)) {
@@ -115,16 +117,17 @@ export async function parseUploadedFile(file) {
   } else if (ext === ".doc") {
     text = await parseDoc(file.buffer, file.originalname);
   } else if ([".xls", ".xlsx"].includes(ext)) {
-    text = parseWorkbook(file.buffer);
+    structured = tryParseBhxhWorkbook(file.buffer, file.originalname);
+    if (!structured) text = parseWorkbook(file.buffer);
   } else if (TEXT_EXTENSIONS.has(ext)) {
     text = cleanText(file.buffer.toString("utf8"));
   } else {
     throw new Error("Định dạng chưa được hỗ trợ. Hãy dùng JPG, PNG, WEBP, PDF, DOC, DOCX, XLS, XLSX, CSV hoặc TXT.");
   }
 
-  if (!text && !images.length) {
+  if (!text && !images.length && !structured) {
     throw new Error("Không đọc được nội dung có ích từ tệp.");
   }
 
-  return { text, images, warnings };
+  return { text, images, warnings, structured };
 }

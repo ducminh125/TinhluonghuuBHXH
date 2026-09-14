@@ -15,7 +15,20 @@
         <h1>Tính lương hưu từ quá trình đóng BHXH</h1>
         <p class="lead">Tự xác định tháng đủ tuổi nghỉ hưu, tính tiền lương đóng gồm các phụ cấp hợp lệ, và ước tính đến thời điểm nghỉ hưu.</p>
       </div>
-      <div class="law-chip" id="lawVersion"></div>
+      <div class="header-actions">
+        <div class="law-chip" id="lawVersion"></div>
+        <div id="accountGuest" class="account-strip">
+          <button class="button secondary small" id="loginBtn" type="button">Đăng nhập / Đăng ký</button>
+        </div>
+        <div id="accountUser" class="account-strip" hidden>
+          <button class="account-button" id="accountBtn" type="button">
+            <span id="accountLabel">Tài khoản</span>
+            <small id="quotaSummary">Đang tải hạn mức…</small>
+          </button>
+          <button class="button secondary small" id="buyCreditsBtn" type="button">Mua thêm lượt</button>
+          <a class="button secondary small" id="adminLink" href="/admin" hidden>Quản trị</a>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -314,8 +327,57 @@
   </main>
 
   <footer class="shell footer">
-    Công cụ phục vụ tham khảo và kiểm tra sơ bộ. Kết quả chính thức phụ thuộc dữ liệu đóng BHXH được cơ quan BHXH ghi nhận và văn bản có hiệu lực tại thời điểm giải quyết.
+    Công cụ phục vụ tham khảo và kiểm tra sơ bộ. Kết quả chính thức phụ thuộc dữ liệu đóng BHXH được cơ quan BHXH ghi nhận và văn bản có hiệu lực tại thời điểm giải quyết. Không lưu tệp hồ sơ gốc sau khi xử lý trừ khi người dùng chủ động lưu kết quả. · <a href="/privacy">Bảo mật</a> · <a href="/terms">Điều khoản</a>
   </footer>
+
+
+  <div class="modal-backdrop" id="authModal" hidden>
+    <section class="modal-card auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <button class="modal-close" id="authClose" type="button" aria-label="Đóng">×</button>
+      <h2 id="authTitle">Đăng nhập / Đăng ký</h2>
+      <p>Tài khoản mới có <strong>3 lượt tính bằng nhập trực tiếp</strong> và <strong>3 lượt lưu lịch sử</strong>. Nhập hồ sơ từ ảnh/file sử dụng lượt hồ sơ trong gói đăng ký.</p>
+      <div id="authMessage"></div>
+      <div class="auth-section">
+        <label class="field"><span>Email</span><input id="authEmail" type="email" autocomplete="email" placeholder="ban@example.com" /></label>
+        <label class="field"><span>Mật khẩu</span><input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Tối thiểu 6 ký tự" /></label>
+        <div class="button-row"><button class="button primary" id="emailLoginBtn" type="button">Đăng nhập</button><button class="button secondary" id="emailSignupBtn" type="button">Đăng ký email</button></div>
+      </div>
+      <div class="auth-divider"><span>hoặc</span></div>
+      <button class="button google-button" id="googleLoginBtn" type="button">Tiếp tục bằng Google</button>
+      <div class="auth-divider"><span>hoặc số điện thoại</span></div>
+      <div class="auth-section">
+        <label class="field"><span>Số điện thoại</span><input id="authPhone" type="tel" autocomplete="tel" placeholder="+8490..." /></label>
+        <button class="button secondary" id="sendOtpBtn" type="button">Gửi mã OTP</button>
+        <div id="otpRow" class="otp-row" hidden>
+          <label class="field"><span>Mã OTP</span><input id="authOtp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" /></label>
+          <button class="button primary" id="verifyOtpBtn" type="button">Xác nhận OTP</button>
+        </div>
+      </div>
+      <small>Việc đăng nhập Google và gửi OTP cần được bật trong cấu hình nhà cung cấp xác thực. Khi đăng ký/tiếp tục, bạn xác nhận đã đọc <a href="/terms" target="_blank" rel="noopener">Điều khoản</a> và <a href="/privacy" target="_blank" rel="noopener">Chính sách bảo mật</a>.</small>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="plansModal" hidden>
+    <section class="modal-card wide-modal" role="dialog" aria-modal="true" aria-labelledby="plansTitle">
+      <button class="modal-close" id="plansClose" type="button" aria-label="Đóng">×</button>
+      <h2 id="plansTitle">Gói sử dụng</h2>
+      <p>Mỗi gói có thể cấu hình riêng số lượt <strong>nhập trực tiếp</strong>, <strong>nhập hồ sơ</strong> và <strong>lưu lịch sử</strong>.</p>
+      <div id="planMessage"></div>
+      <div id="planCards" class="plan-grid"></div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="accountModal" hidden>
+    <section class="modal-card wide-modal" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+      <button class="modal-close" id="accountClose" type="button" aria-label="Đóng">×</button>
+      <div class="modal-heading-row"><div><h2 id="accountTitle">Tài khoản của tôi</h2><p>Theo dõi lượt sử dụng, lịch sử và đơn hàng.</p></div><button class="button primary" id="accountBuyBtn" type="button">Mua thêm lượt</button></div>
+      <div class="account-columns">
+        <div><h3>Lịch sử đã lưu</h3><div id="historyList" class="account-list"></div></div>
+        <div><h3>Đơn hàng gần đây</h3><div id="orderList" class="account-list"></div></div>
+      </div>
+      <div class="modal-footer"><button class="button secondary" id="logoutBtn" type="button">Đăng xuất</button></div>
+    </section>
+  </div>
 
   <template id="periodRowTemplate">
     <tr class="period-row">
@@ -359,6 +421,8 @@
     </tr>
   </template>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="./js/account.js"></script>
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>

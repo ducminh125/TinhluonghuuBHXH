@@ -1,290 +1,318 @@
-# VN Pension Calculator v2.4
+# VN Pension Calculator v3.0 — bản thương mại hóa
 
-Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024. Dữ liệu hồ sơ có thể được nhập trực tiếp hoặc trích xuất từ ảnh/PDF/Word/Excel; phép tính lương hưu được thực hiện bởi engine quy tắc trong source code.
+Web ước tính lương hưu Việt Nam theo Luật BHXH 2024, có hệ thống tài khoản, hạn mức sử dụng, lịch sử, gói trả phí và trang quản trị. Người dùng có thể nhập quá trình đóng trực tiếp hoặc nhập từ ảnh/PDF/Word/Excel. Phép tính cuối cùng được thực hiện bởi **engine quy tắc trong source code**, không giao cho mô hình AI tự quyết định số tiền lương hưu.
 
-> Công cụ dùng để tham khảo, kiểm tra và mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH ghi nhận và văn bản có hiệu lực tại thời điểm giải quyết chế độ.
+> Đây là công cụ tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH và văn bản có hiệu lực tại thời điểm giải quyết chế độ.
 
-## 1. Chức năng chính
+## 1. Điểm mới của v3
 
-- Tự xác định **tháng dự kiến nghỉ hưu** từ ngày sinh + giới tính theo lộ trình tuổi nghỉ hưu.
-- Không bắt người dùng chọn một loại BHXH chung ở đầu form; chế độ được xác định theo **từng giai đoạn đóng**.
-- Nhập quá trình đóng theo `Từ tháng → Đến tháng`, bằng **hệ số** hoặc **VND/tháng**. Giao diện dùng định dạng Việt Nam: ngày `dd/mm/yyyy`, tháng `mm/yyyy`.
-- Tính mức bình quân từ lịch sử đóng thay vì yêu cầu người dùng tự nhập mức bình quân.
-- Cho phép nhập các khoản **phụ cấp/khoản bổ sung thuộc căn cứ đóng BHXH** trước khi tính bình quân.
-- Import đồng thời nhiều **JPG / PNG / WEBP / PDF / Word / Excel / CSV / TXT**.
-- Sau khi đọc file, các giai đoạn đủ dữ liệu được **tự động điền ngay vào quá trình đóng**. Bảng **“Dữ liệu nhận diện được / Dữ liệu còn thiếu”** chỉ xuất hiện khi còn thông tin chưa rõ, trường bắt buộc bị thiếu hoặc có xung đột cần người dùng xác nhận.
-- Tự lọc phần thời gian bị trùng do nhiều ảnh chụp có vùng gối nhau.
-- Nếu cùng một tháng xuất hiện hai giá trị khác nhau, hệ thống **không tự chọn số mới** mà giữ bản đọc trước và cảnh báo tháng cần đối chiếu.
-- Tùy chọn **tự bổ sung quá trình đóng đến tháng nghỉ hưu**:
-  - mức đóng bằng VND: giữ mức lương/thu nhập hiện tại;
-  - lương Nhà nước theo hệ số: tự nhận diện tháng bắt đầu bậc hiện tại, chu kỳ 24/36/60 tháng, mức tăng hệ số và hệ số tối đa từ lịch sử đổi hệ số + thang hệ số tích hợp; người dùng chỉ cần hiệu chỉnh khi hồ sơ có trường hợp đặc thù.
-- Kết quả tương lai chỉ có một ghi chú ngắn **“Kết quả đang tạm tính”** ở cuối phần kết quả.
+### Tài khoản và hạn mức
 
-## 2. Cơ sở pháp lý được mô hình hóa
+Tài khoản mới được cấp mặc định:
 
-Các rule chính hiện đặt trong `js/rules.js`, `js/contributions.js` và `js/pension.js`:
+- **03 lượt tính bằng Nhập trực tiếp quá trình đóng**;
+- **00 lượt Nhập từ ảnh hoặc file hồ sơ**;
+- **03 lượt lưu lịch sử**.
 
-- Luật Bảo hiểm xã hội số **41/2024/QH15**, hiệu lực từ 01/07/2025;
-- Nghị định **135/2020/NĐ-CP** về tuổi nghỉ hưu;
-- Nghị định **158/2025/NĐ-CP** quy định chi tiết về BHXH bắt buộc;
-- Nghị định **204/2004/NĐ-CP** và các sửa đổi còn hiệu lực (trong đó có Nghị định **07/2026/NĐ-CP**) làm cơ sở cho các thang hệ số lương phổ biến dùng ở phần nhận diện dự báo;
-- Thông tư **12/2025/TT-BNV** và các quy định hướng dẫn có liên quan;
-- Thông tư **08/2013/TT-BNV**, được sửa đổi bởi Thông tư **03/2021/TT-BNV**, dùng làm cơ sở cho cấu hình chu kỳ nâng bậc thường xuyên;
-- Nghị định **161/2026/NĐ-CP**: mức lương cơ sở 2.530.000 đồng/tháng từ 01/07/2026;
-- bộ hệ số điều chỉnh tiền lương/thu nhập đã đóng BHXH năm 2025 và năm 2026 đang tích hợp trong source.
+Ba loại lượt được lưu ở `wallets` và trừ **phía server**. Không dùng localStorage hay biến JavaScript trên trình duyệt để quyết định quyền sử dụng.
 
-### Khoảng thời gian bình quân của nhóm lương Nhà nước
+Đăng nhập hỗ trợ:
 
-Theo mốc bắt đầu tham gia BHXH bắt buộc, engine đang mô hình hóa:
+- Email + mật khẩu;
+- Google/Gmail qua OAuth;
+- Số điện thoại qua OTP SMS.
 
-| Bắt đầu tham gia | Khoảng lương Nhà nước dùng tính bình quân |
-|---|---:|
-| Trước 1995 | 60 tháng |
-| 1995–2000 | 72 tháng |
-| 2001–2006 | 96 tháng |
-| 2007–2015 | 120 tháng |
-| 2016–2019 | 180 tháng |
-| 2020–2024 | 240 tháng |
-| Từ 2025 | Toàn bộ thời gian |
+### Gói dịch vụ
 
-Với lịch sử hỗn hợp, engine giữ riêng logic lương Nhà nước, lương do người sử dụng lao động quyết định và BHXH tự nguyện trước khi tổng hợp mức bình quân.
+Admin có thể tạo/sửa giá và số lượt cho từng gói mà không sửa source. Schema có sẵn ba **gói mẫu để tham khảo**, có thể chỉnh hoặc tắt trước khi mở bán:
 
-## 3. Phụ cấp tính đóng BHXH
+| Gói mẫu | Giá mẫu | Trực tiếp | Hồ sơ | Lưu lịch sử |
+|---|---:|---:|---:|---:|
+| Gói Trực tiếp 10 | 29.000đ | 10 | 0 | 10 |
+| Gói Hồ sơ 5 | 49.000đ | 0 | 5 | 5 |
+| Combo 99K | 99.000đ | 20 | 10 | 20 |
 
-### 3.1. Tiền lương do Nhà nước quy định, nhập bằng hệ số
+**Giá trên chỉ là giá seed kỹ thuật**, không phải khuyến nghị kinh doanh. Hãy điều chỉnh theo chi phí AI, phí thanh toán, thuế, hỗ trợ khách hàng và biên lợi nhuận thực tế.
 
-Mỗi giai đoạn có thể nhập riêng:
+### Admin
 
-- hệ số lương chính;
-- hệ số phụ cấp chức vụ;
-- tỷ lệ phụ cấp thâm niên vượt khung;
-- tỷ lệ phụ cấp thâm niên nghề;
-- hệ số chênh lệch bảo lưu.
+Trang `/admin` gồm:
 
-Engine quy đổi thành tổng hệ số làm căn cứ đóng theo cấu trúc:
+- tổng số tài khoản;
+- đơn hàng chờ duyệt;
+- doanh thu các đơn đã duyệt;
+- thời gian xử lý hồ sơ trung bình;
+- danh sách tài khoản + số lượt còn lại;
+- cộng lượt thủ công;
+- tạm khóa/mở khóa tài khoản;
+- tạo/sửa/bật/tắt gói;
+- duyệt chuyển khoản và tự cộng lượt;
+- log các lần import: parser/model/thời gian/trạng thái.
+
+Mọi API admin kiểm tra `role = admin` ở server. Secret/service-role key không được đưa ra trình duyệt.
+
+## 2. Chiến lược đọc hồ sơ nhanh
+
+Không nên gửi mọi file sang một model lớn.
+
+Luồng v3:
 
 ```text
-TNVK = hệ số lương × % TNVK
-Thâm niên nghề = (hệ số lương + PC chức vụ + TNVK quy hệ số) × % thâm niên nghề
-Tổng hệ số đóng = hệ số lương + PC chức vụ + TNVK + thâm niên nghề + chênh lệch bảo lưu
+File người dùng
+   ↓
+Có cấu trúc đọc trực tiếp được?
+   ├─ Excel mẫu BHXH chuẩn → parser XLSX cục bộ → JSON
+   └─ Ảnh / PDF scan / hồ sơ khó
+          ↓
+     Gemini Flash (tuyến nhanh)
+          ↓ lỗi / JSON không hợp lệ / timeout
+     GPT-5.6 Luna (fallback)
+          ↓
+     Chuẩn hóa + lọc trùng + cảnh báo phần chưa rõ
+          ↓
+     Engine tính lương hưu
 ```
 
-Nếu hồ sơ đã ghi **tổng tiền lương làm căn cứ đóng BHXH bằng VND**, hãy nhập tổng đó ở cột lương và để phụ cấp riêng bằng 0 để tránh cộng hai lần.
+### Vì sao thay đổi này quan trọng
 
-### 3.2. Tiền lương do người sử dụng lao động quyết định
+Với file Excel BHXH dạng bảng có các cột như `Từ tháng`, `Đến tháng`, `Mức đóng`, phụ cấp..., backend đọc trực tiếp bằng parser. Không cần upload toàn bộ bảng sang AI nên tránh phần lớn độ trễ 120 giây.
 
-Có thể nhập:
+`server/structured-bhxh.js` hiện nhận diện bảng BHXH dạng Mẫu 07/SBH phổ biến, đồng thời bỏ dòng chỉ ghi BHTN để tránh cộng trùng quá trình hưu trí.
 
-- tiền lương công việc/chức danh;
-- tổng phụ cấp và khoản bổ sung ổn định **thuộc căn cứ đóng BHXH**.
-
-Engine cộng hai phần này trước khi áp dụng hệ số điều chỉnh và tính bình quân.
-
-Không nên nhập các khoản chỉ phụ thuộc biến động năng suất/kết quả làm việc nếu chúng không thuộc căn cứ đóng BHXH của hồ sơ.
-
-## 4. Import nhiều ảnh/tệp và chống trùng
-
-Phần import được đặt ngay trong **mục 2 - Quá trình đóng BHXH** để người dùng có thể chọn nhập tay hoặc nhập từ file. Frontend cho phép chọn tối đa 20 tệp trong một lần import. Backend đọc toàn bộ nguồn trong cùng một request để có ngữ cảnh giữa các ảnh.
-
-### Trường dữ liệu nên có trong file gửi kèm
-
-Tối thiểu để tạo được một giai đoạn đóng hợp lệ, hồ sơ cần thể hiện:
-
-- từ tháng/năm và đến tháng/năm;
-- loại tiền lương/thu nhập hoặc dấu hiệu đủ để xác định nhóm lương Nhà nước, lương do người sử dụng lao động quyết định hay BHXH tự nguyện;
-- mức lương đóng bằng **hệ số** hoặc **VND/tháng**;
-- nếu hồ sơ tách riêng phụ cấp thuộc căn cứ đóng thì cần thể hiện tên/mức phụ cấp.
-
-Nên có thêm, nếu tài liệu thể hiện:
-
-- ngày sinh, giới tính;
-- phụ cấp chức vụ, thâm niên vượt khung, thâm niên nghề, chênh lệch bảo lưu;
-- phụ cấp/khoản bổ sung ổn định thuộc căn cứ đóng đối với lương doanh nghiệp;
-- ngạch, bậc, chức danh và đơn vị công tác để phục vụ kiểm tra và dự báo nâng bậc;
-- tiêu đề cột trên mỗi ảnh/bảng. Với nhiều ảnh chụp liên tiếp, nên giữ một phần giao nhau giữa hai ảnh để hệ thống ghép và lọc trùng.
-
-Nếu hồ sơ đã ghi **tổng tiền lương làm căn cứ đóng BHXH**, hệ thống dùng tổng đó và không cộng phụ cấp lần nữa. Nếu hồ sơ tách lương chính và phụ cấp, hai phần được lưu riêng rồi cộng trước khi tính bình quân.
-
-Sau bước trích xuất, hệ thống xử lý theo cơ chế **tự động điền trước – chỉ hỏi khi chưa rõ**:
-
-- các dòng đủ **từ tháng, đến tháng, chế độ và mức đóng/hệ số** được tự động đưa vào quá trình đóng ngay sau khi đọc xong;
-- dữ liệu được ghép với phần người dùng đã nhập và chạy qua `dedupeImportedPeriods()` để loại phần tháng trùng;
-- bảng **“Dữ liệu nhận diện được / Dữ liệu còn thiếu”** chỉ xuất hiện khi có dòng thiếu trường bắt buộc, dữ liệu giữa các ảnh/tệp xung đột, hoặc thông tin cá nhân đọc được khác với dữ liệu đang nhập;
-- các dòng chưa đủ dữ liệu không được tự động chèn vào phép tính cho đến khi người dùng bổ sung/đối chiếu.
-
-Trong lúc đọc, giao diện hiển thị trạng thái xử lý theo từng bước và số giây đã chạy để tránh hiểu nhầm ứng dụng bị treo. Thanh tiến trình là dạng **đang hoạt động** chứ không giả lập phần trăm hoàn thành.
-
-Sau đó dữ liệu hợp lệ được xử lý như sau:
-
-1. Mỗi giai đoạn được mở rộng theo từng tháng.
-2. Cùng tháng + cùng chế độ + cùng lương/phụ cấp → coi là trùng và chỉ giữ một bản.
-3. Cùng tháng nhưng khác lương/phụ cấp → đánh dấu xung đột, giữ bản xuất hiện trước và cảnh báo người dùng đối chiếu.
-4. Các tháng liên tiếp có dữ liệu giống nhau được nén lại thành một giai đoạn.
-
-Nhờ vậy ảnh 1 kết thúc ở 06/2024 và ảnh 2 chụp lặp lại 05–06/2024 trước khi tiếp tục từ 07/2024 sẽ không làm tăng sai số tháng đóng.
-
-## 5. Tự bổ sung quá trình đóng đến nghỉ hưu
-
-Bật lựa chọn **“Tự bổ sung quá trình đóng đến tháng nghỉ hưu”** để tạo dữ liệu giả định từ tháng ngay sau giai đoạn thực tế cuối cùng.
-
-### Mức đóng bằng VND
-
-Web giữ nguyên:
-
-- tiền lương/thu nhập hiện tại;
-- phụ cấp/khoản bổ sung tính đóng hiện tại (nếu có).
-
-Mức này được kéo dài đến tháng nghỉ hưu.
-
-### Lương Nhà nước theo hệ số
-
-Web dùng `inferStateSalaryProgression()` để tự xác định từ lịch sử hệ số:
-
-- **tháng bắt đầu hưởng bậc hiện tại**: tháng đầu tiên của giai đoạn liên tục có hệ số hiện tại;
-- **chu kỳ xét nâng bậc**: ưu tiên khoảng cách thực tế giữa các lần đổi hệ số nếu khớp 24/36/60 tháng, nếu chưa đủ lịch sử thì dùng chu kỳ của thang lương nhận diện được;
-- **mức tăng hệ số mỗi bậc**: chênh lệch sang bậc kế tiếp trong thang hệ số;
-- **hệ số tối đa của ngạch**: bậc cuối của thang hệ số nhận diện được.
-
-Các thang A3.1, A3.2, A2.1, A2.2, A1, A0, B, C... được tách trong `js/salary-scales.js`. Nếu một hệ số xuất hiện ở nhiều thang và lịch sử không đủ phân biệt, engine **không ép chọn** mà chỉ tự điền phần có thể xác định chắc chắn và cảnh báo kiểm tra. Chu kỳ 60/36/24 tháng được mô hình hóa theo Thông tư 08/2013/TT-BNV (được sửa đổi, bổ sung).
-
-Các mốc thay đổi **mức lương cơ sở** có trong `BASE_SALARY_LEVELS` được áp dụng tự động khi quy đổi từng tháng. Nếu tương lai có bảng lương mới, hệ số mới hoặc quy định mới chưa có trong repo, kết quả phải được cập nhật lại.
-
-### Xử lý dữ liệu lương Nhà nước rất cũ
-
-Engine chọn đúng cửa sổ 5/6/8/10/15/20 năm (hoặc toàn bộ thời gian) **trước khi quy đổi giá trị từng tháng**. Vì vậy một tháng VND rất cũ nằm ngoài cửa sổ dùng tính bình quân không còn làm toàn bộ phép tính dừng.
-
-Nếu một tháng **trước 01/04/1993** thực sự nằm trong cửa sổ tính bình quân và hồ sơ chỉ có số tiền VND, engine không tự chia cho một mức lương cơ sở giả định. Trường hợp này cần bổ sung hệ số/ngạch bậc hoặc dữ liệu chuyển xếp tiền lương lịch sử để quy đổi chính xác.
-
-## 6. Kết quả đang tạm tính
-
-Thông báo tạm tính được rút gọn và đặt **cuối cùng** trong phần kết quả. Kết quả được đánh dấu tạm tính khi có một trong các tình huống như:
-
-- có tháng tương lai do người dùng chọn tự bổ sung;
-- năm hưởng nằm sau bộ hệ số điều chỉnh mới nhất đã tích hợp;
-- mức lương cơ sở/mức tham chiếu tương lai chưa có văn bản mới trong bộ rule hiện tại.
-
-## 7. Kết nối AI để đọc hồ sơ
-
-API key chỉ nằm ở backend; tuyệt đối không đưa key vào trình duyệt hoặc commit GitHub.
+### Model mặc định
 
 ```env
-SHOPAIKEY_API_KEY=your-api-key
+SHOPAIKEY_FAST_MODEL=gemini-3-flash-preview
+SHOPAIKEY_FALLBACK_MODEL=gpt-5.6-luna
+```
+
+- `gemini-3-flash-preview`: tuyến ưu tiên cho ảnh/PDF scan vì mục tiêu của dòng Flash là tốc độ/multimodal;
+- `gpt-5.6-luna`: fallback theo chuẩn OpenAI-compatible, nhẹ và rẻ hơn Terra theo bảng giá gateway tại thời điểm xây dựng;
+- `gpt-5.6-terra`: không dùng mặc định; có thể cấu hình làm tuyến escalation riêng nếu sau này cần xử lý hồ sơ rất khó.
+
+Không nên cam kết một số giây cố định cho AI vì độ trễ còn phụ thuộc số trang, kích thước ảnh, channel/provider và tải hệ thống. Admin dashboard lưu `latency_ms` để benchmark trên dữ liệu thật rồi quyết định route. Với ảnh/PDF scan, backend mặc định chia vision thành batch 4 ảnh và xử lý tối đa 2 batch song song (`AI_IMAGE_BATCH_SIZE`, `AI_BATCH_CONCURRENCY`), sau đó gộp/lọc trùng lại; tránh một request quá lớn phải chờ lâu.
+
+## 3. Luồng quota
+
+### Nhập trực tiếp
+
+1. Người dùng nhập dữ liệu.
+2. Server kiểm tra và tính.
+3. Chỉ khi phép tính hợp lệ mới trừ **01 direct credit**.
+
+### Nhập hồ sơ
+
+1. Người dùng tải file.
+2. Server trừ **01 file credit** trước khi xử lý.
+3. Nếu import lỗi → tự hoàn **01 file credit**.
+4. Import thành công tạo `import_job`.
+5. Một `import_job` được dùng cho một phép tính hồ sơ; reload cùng input có thể trả cached result, không trừ thêm.
+
+### Lưu lịch sử
+
+Mỗi lần bấm lưu kết quả → trừ **01 history credit**. RPC `save_calculation_history` thực hiện trừ credit + lưu lịch sử trong cùng giao dịch database.
+
+## 4. Database
+
+Chạy file:
+
+```text
+supabase/schema.sql
+```
+
+Các bảng chính:
+
+- `profiles`: role/status;
+- `wallets`: 3 ví lượt;
+- `plans`: gói dịch vụ;
+- `orders`: đơn thanh toán;
+- `usage_events`: sổ biến động credit;
+- `calculation_history`: lịch sử người dùng chủ động lưu;
+- `import_jobs`: hiệu năng và trạng thái import;
+- `admin_audit_logs`: log thao tác admin.
+
+RLS được bật; các bảng nghiệp vụ không mở trực tiếp cho browser. Backend dùng server credential để thực hiện nghiệp vụ sau khi xác thực JWT người dùng.
+
+### Tạo admin đầu tiên
+
+Sau khi tài khoản đã đăng ký:
+
+```sql
+update public.profiles
+set role = 'admin'
+where user_id = '<UUID tài khoản>';
+```
+
+## 5. Cấu hình Supabase Auth
+
+### Email
+
+Email/password dùng trực tiếp Supabase Auth. Nên bật xác minh email khi chạy production.
+
+### Google/Gmail
+
+Trong Supabase Dashboard:
+
+1. Authentication → Providers → Google;
+2. tạo OAuth Client trong Google Cloud;
+3. điền Client ID/Secret;
+4. thêm domain production và redirect URL theo hướng dẫn Supabase.
+
+Frontend gọi `signInWithOAuth({ provider: 'google' })`.
+
+### Điện thoại
+
+Bật Phone provider và cấu hình SMS provider. OTP gửi SMS phát sinh chi phí riêng; production nên bật CAPTCHA/rate limit để chống spam OTP.
+
+## 6. Cấu hình môi trường
+
+Sao chép `.env.example` thành `.env`:
+
+```env
+SHOPAIKEY_API_KEY=...
 SHOPAIKEY_BASE_URL=https://api.shopaikey.com/v1
-SHOPAIKEY_MODEL=gpt-5.6-terra
+SHOPAIKEY_FAST_MODEL=gemini-3-flash-preview
+SHOPAIKEY_FALLBACK_MODEL=gpt-5.6-luna
+AI_FAST_TIMEOUT_MS=45000
+AI_FALLBACK_TIMEOUT_MS=45000
+AI_IMAGE_BATCH_SIZE=4
+AI_BATCH_CONCURRENCY=2
+
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
+
+PAYMENT_BANK_NAME=VCB
+PAYMENT_BANK_ACCOUNT=...
+PAYMENT_ACCOUNT_NAME=...
 PORT=3000
 ```
 
-Các biến trên giữ nguyên theo gateway API đang sử dụng, nhưng giao diện người dùng không hiển thị tên gateway/model.
+`SUPABASE_SECRET_KEY`/`SUPABASE_SERVICE_ROLE_KEY` và `SHOPAIKEY_API_KEY` **chỉ đặt ở server/Vercel Environment Variables**, tuyệt đối không commit GitHub hoặc render vào HTML.
 
-Model chỉ trả dữ liệu cấu trúc, ví dụ:
+## 7. Thanh toán
 
-```json
-{
-  "person": {"birthDate":"1969-05-20", "sex":"female"},
-  "periods": [
-    {
-      "from":"2024-07",
-      "to":"2025-06",
-      "regime":"state",
-      "valueType":"coefficient",
-      "coefficient":4.98,
-      "positionAllowanceCoeff":0.3,
-      "seniorityBeyondPercent":0,
-      "professionalSeniorityPercent":10,
-      "reservedDifferenceCoeff":0,
-      "allowanceVnd":0,
-      "note":"Nguồn: ảnh quá trình đóng"
-    }
-  ],
-  "warnings":[]
-}
+Bản v3 triển khai MVP an toàn để có thể thử thương mại ngay:
+
+```text
+Khách chọn gói
+→ tạo mã đơn hàng
+→ hiển thị thông tin chuyển khoản
+→ admin kiểm tra tiền
+→ bấm “Xác nhận đã thanh toán”
+→ RPC approve_order
+→ tự cộng credit
 ```
 
-AI **không quyết định lương hưu cuối cùng**. Dữ liệu sau import vẫn được người dùng xem lại, sau đó engine JavaScript mới tính.
+Khi có tài khoản merchant, có thể thay bước admin duyệt bằng webhook của PayOS/VNPay/MoMo. Khi triển khai webhook cần:
 
-## 8. Chạy local
+- xác minh chữ ký từ nhà cung cấp;
+- idempotency theo mã giao dịch;
+- không cộng credit hai lần;
+- lưu raw event/audit;
+- xử lý hoàn tiền/chargeback nếu nhà cung cấp hỗ trợ.
+
+## 8. Quyền riêng tư và dữ liệu hồ sơ
+
+Hồ sơ BHXH chứa dữ liệu cá nhân và thu nhập. Bản v3 theo hướng tối thiểu hóa dữ liệu:
+
+- file upload chỉ được xử lý trong request, **không lưu bản gốc vào database**;
+- `import_jobs` chỉ lưu metadata kỹ thuật, không lưu file;
+- kết quả chỉ được lưu vào `calculation_history` khi người dùng chủ động bấm **Lưu lịch sử**;
+- người dùng có thể xóa lịch sử;
+- production nên bổ sung trang Điều khoản sử dụng, Chính sách bảo mật và cơ chế yêu cầu xóa tài khoản/dữ liệu;
+- cần cấu hình log production để **không ghi raw hồ sơ, access token hoặc API key**.
+
+## 9. Các lớp chống lạm dụng cần bật trước khi mở bán rộng
+
+Repo đã có kiểm tra quota server-side, nhưng production nên bổ sung:
+
+1. rate limit theo IP + user cho `/api/import`, `/api/calculate`, login và tạo đơn;
+2. CAPTCHA cho đăng ký và SMS OTP;
+3. giới hạn MIME/file signature, không chỉ extension;
+4. malware scan nếu sau này lưu file;
+5. timeout + circuit breaker cho AI provider;
+6. daily cost ceiling/cảnh báo chi phí;
+7. sao lưu database và theo dõi lỗi;
+8. payment webhook chính thức nếu muốn tự động hóa doanh thu;
+9. trang privacy/terms/consent;
+10. chính sách lưu/xóa lịch sử theo thời hạn.
+
+## 10. Công thức BHXH
+
+Các rule chính nằm trong:
+
+- `js/rules.js`;
+- `js/contributions.js`;
+- `js/pension.js`;
+- `js/salary-scales.js`.
+
+Cơ sở pháp lý được mô hình hóa gồm Luật BHXH 41/2024/QH15, Nghị định 135/2020/NĐ-CP, Nghị định 158/2025/NĐ-CP, các bảng lương/hệ số liên quan và các văn bản cập nhật mức lương cơ sở/hệ số điều chỉnh đã tích hợp trong source.
+
+Lưu ý: cần rà soát văn bản mới trước khi thương mại hóa chính thức và cập nhật rule khi pháp luật thay đổi.
+
+## 11. Chạy local
 
 Yêu cầu Node.js 20+.
 
 ```bash
 npm install
 cp .env.example .env
-# điền API key trong .env
 npm start
 ```
 
-Mở `http://localhost:3000`.
+Mở:
 
-Kiểm tra backend: `GET /api/health`.
+- Công cụ: `http://localhost:3000/`
+- Admin: `http://localhost:3000/admin`
+- Health: `http://localhost:3000/api/health`
 
-## 9. Deploy từ GitHub
+Nếu chưa cấu hình Supabase, phần engine frontend vẫn có thể dùng cho development, nhưng tài khoản/quota/import thương mại sẽ chưa hoạt động đầy đủ.
 
-Có thể đưa toàn bộ repo lên GitHub và deploy full-stack lên Vercel/Node hosting.
+## 12. Deploy
 
-Cần thiết lập biến môi trường trên nền tảng deploy:
+Khuyến nghị:
 
-- `SHOPAIKEY_API_KEY`
-- `SHOPAIKEY_BASE_URL`
-- `SHOPAIKEY_MODEL`
+- GitHub: source control;
+- Vercel/Render/Fly.io: Node backend;
+- Supabase: Auth + Postgres;
+- ShopAIKey: AI gateway cho các file thực sự cần model.
 
-Không commit `.env`.
+Không dùng GitHub Pages thuần tĩnh cho bản thương mại vì cần giữ secret key và thực thi quota ở backend.
 
-> GitHub Pages thuần tĩnh vẫn chạy được giao diện và tính toán nhập tay, nhưng không nên gọi API AI trực tiếp từ browser vì sẽ làm lộ API key.
-
-## 10. Cấu trúc repo
+## 13. Cấu trúc repo
 
 ```text
-vn-pension-calculator-v2/
+vn-pension-calculator-v3/
 ├── index.html
+├── admin.html
 ├── styles.css
 ├── js/
-│   ├── rules.js
-│   ├── pension.js
+│   ├── account.js
+│   ├── admin.js
+│   ├── app.js
 │   ├── contributions.js
-│   ├── salary-scales.js
-│   └── app.js
+│   ├── pension.js
+│   ├── rules.js
+│   └── salary-scales.js
 ├── server/
 │   ├── index.js
 │   ├── parsers.js
-│   └── shopaikey.js
+│   ├── structured-bhxh.js
+│   ├── shopaikey.js
+│   └── supabase.js
+├── supabase/
+│   └── schema.sql
 ├── tests/
-│   ├── pension.test.js
-│   └── contributions.test.js
-├── .github/workflows/test.yml
 ├── .env.example
-├── .gitignore
-├── vercel.json
-└── package.json
+├── package.json
+└── vercel.json
 ```
 
-## 11. Kiểm thử
+## 14. Tài liệu kỹ thuật tham khảo
 
-```bash
-npm test
-```
-
-Bộ test bao gồm:
-
-- tuổi nghỉ hưu và tỷ lệ hưởng;
-- giảm trừ nghỉ trước tuổi;
-- làm tròn tháng lẻ;
-- phát hiện tháng đóng trùng;
-- lọc trùng từ nhiều ảnh;
-- cảnh báo dữ liệu chồng lấn nhưng khác giá trị;
-- lương Nhà nước trước/sau 2016;
-- phụ cấp tính đóng của lương Nhà nước;
-- phụ cấp/khoản bổ sung của lương doanh nghiệp;
-- lịch sử đóng hỗn hợp;
-- BHXH tự nguyện;
-- giữ mức VND hiện tại đến nghỉ hưu;
-- tự nhận diện thang lương, bậc hiện tại, chu kỳ và mức tăng hệ số;
-- hồi quy lỗi lương Nhà nước VND rất cũ nằm ngoài cửa sổ bình quân;
-- mô phỏng nâng hệ số theo chu kỳ tự nhận diện/đã hiệu chỉnh;
-- đánh dấu tạm tính khi dùng dữ liệu tương lai.
-
-## 12. Khuyến nghị trước khi dùng nghiệp vụ chính thức
-
-- Đối chiếu tối thiểu 20–50 hồ sơ đã có quyết định hưởng thực tế.
-- Bổ sung thêm bảng lương/ngạch/bậc chuyên ngành ngoài các thang phổ biến đã tích hợp để tăng khả năng tự nhận diện.
-- Cập nhật mức lương cơ sở, mức tham chiếu và hệ số điều chỉnh ngay khi có văn bản mới.
-- Nếu lưu hồ sơ cá nhân lên server, cần bổ sung xác thực, mã hóa, thời hạn lưu và chính sách dữ liệu. Bản hiện tại không lưu hồ sơ vào database.
+- ShopAIKey model/pricing: https://shopaikey.com/en/models
+- ShopAIKey: https://shopaikey.com/
+- Supabase Auth: https://supabase.com/docs/guides/auth
+- Supabase Google login: https://supabase.com/docs/guides/auth/social-login/auth-google
+- Supabase admin users: https://supabase.com/docs/reference/javascript/auth-admin-listusers

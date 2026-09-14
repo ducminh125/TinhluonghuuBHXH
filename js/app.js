@@ -25,6 +25,9 @@ let lastForecastHistorySignature = "";
 let forecastInferenceCache = null;
 let importProgressTimer = null;
 let importProgressStartedAt = 0;
+let lastEntryMode = "manual";
+let lastImportJobId = null;
+let lastCalculationPayload = null;
 
 $("lawVersion").textContent = `${LAW_META.law} · ${LAW_META.decree} · ${LAW_META.retirementDecree} · cập nhật ${LAW_META.updatedAt}`;
 
@@ -573,12 +576,26 @@ $("importAiBtn").addEventListener("click", async () => {
   startImportProgress(files.length);
 
   try {
+    await window.PensionAccount?.ready;
+    if (window.PensionAccount?.config?.authEnabled && !window.PensionAccount.requireLogin()) {
+      throw new Error("Vui lòng đăng nhập để sử dụng chức năng đọc hồ sơ.");
+    }
     const body = new FormData();
     files.forEach(file => body.append("files", file));
-    const response = await fetch("/api/import", { method: "POST", body });
+    const request = window.PensionAccount?.config?.authEnabled
+      ? window.PensionAccount.authorizedFetch("/api/import", { method: "POST", body })
+      : fetch("/api/import", { method: "POST", body });
+    const response = await request;
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+    if (!response.ok) {
+      const err = new Error(payload.error || `HTTP ${response.status}`);
+      err.status = response.status;
+      throw err;
+    }
 
+    lastEntryMode = "file";
+    lastImportJobId = payload.meta?.importJobId || null;
+    await window.PensionAccount?.refreshMe?.();
     const applied = applyImportedData(payload);
     const recognized = Number(payload.meta?.recognizedRows ?? payload.reviewPeriods?.length ?? payload.periods?.length ?? 0);
     const ready = Number(payload.meta?.importableRows ?? payload.periods?.length ?? 0);
@@ -587,15 +604,17 @@ $("importAiBtn").addEventListener("click", async () => {
     const extraWarnings = applied.confirmationWarnings;
     const needsReview = renderImportReview(payload, extraWarnings);
 
+    const seconds = Number(payload.meta?.latencyMs || 0) > 0 ? ` trong ${(Number(payload.meta.latencyMs) / 1000).toFixed(1).replace(".0", "")} giây` : "";
+    const parserText = payload.meta?.source === "structured_parser" ? " bằng bộ đọc dữ liệu trực tiếp" : "";
     if (needsReview) {
       setImportStatus(
         "warning",
-        `<strong>Đã đọc ${payload.meta?.sourceCount || files.length} tệp và tự động điền ${applied.importedCount} giai đoạn rõ ràng.</strong> ${missing ? `Có ${missing} dòng còn thiếu dữ liệu. ` : ""}${removed ? `Đã loại ${removed} phần tháng trùng lặp. ` : ""}Còn một số thông tin cần xác nhận thêm ở khung bên dưới.`
+        `<strong>Đã đọc ${payload.meta?.sourceCount || files.length} tệp${seconds}${parserText} và tự động điền ${applied.importedCount} giai đoạn rõ ràng.</strong> ${missing ? `Có ${missing} dòng còn thiếu dữ liệu. ` : ""}${removed ? `Đã loại ${removed} phần tháng trùng lặp. ` : ""}Còn một số thông tin cần xác nhận thêm ở khung bên dưới.`
       );
     } else {
       setImportStatus(
         "success",
-        `<strong>Đã đọc ${payload.meta?.sourceCount || files.length} tệp và tự động điền ${applied.importedCount} giai đoạn vào quá trình đóng.</strong>${removed ? ` Đã loại ${removed} phần tháng trùng lặp.` : ""} Không có thông tin chưa rõ cần xác nhận thêm.`
+        `<strong>Đã đọc ${payload.meta?.sourceCount || files.length} tệp${seconds}${parserText} và tự động điền ${applied.importedCount} giai đoạn vào quá trình đóng.</strong>${removed ? ` Đã loại ${removed} phần tháng trùng lặp.` : ""} Không có thông tin chưa rõ cần xác nhận thêm.`
       );
     }
   } catch (error) {
@@ -603,6 +622,7 @@ $("importAiBtn").addEventListener("click", async () => {
       ? " Chức năng đọc hồ sơ cần chạy bằng backend Node/Vercel để giữ bí mật API key."
       : "";
     setImportStatus("error", `<strong>Không đọc được hồ sơ:</strong> ${escapeHtml(error.message)}.${extra}`);
+    if (error.status === 402) window.PensionAccount?.openPlans?.();
   } finally {
     stopImportProgress();
     btn.disabled = false;
@@ -676,11 +696,35 @@ function renderResult(avg, result, input) {
     </div>
     ${warningHtml}
     ${provisionalHtml}
+    <div class="result-actions">
+      <button class="button secondary" type="button" id="saveHistoryBtn">Lưu kết quả vào lịch sử</button>
+      <span id="saveHistoryStatus"></span>
+    </div>
   `;
+  const saveBtn = document.getElementById("saveHistoryBtn");
+  saveBtn?.addEventListener("click", async () => {
+    if (!lastCalculationPayload) return;
+    const status = document.getElementById("saveHistoryStatus");
+    saveBtn.disabled = true;
+    if (status) status.textContent = "Đang lưu…";
+    try {
+      await window.PensionAccount?.ready;
+      await window.PensionAccount.saveHistory({
+        title: `Lương hưu dự kiến ${displayMonth(input.retirementMonth)}`,
+        mode: lastCalculationPayload.mode,
+        input: lastCalculationPayload.request,
+        result: lastCalculationPayload.result
+      });
+      if (status) status.textContent = "Đã lưu.";
+    } catch (error) {
+      if (status) status.textContent = error.message || "Không lưu được.";
+      if (/hết lượt|mua thêm/i.test(error.message || "")) window.PensionAccount?.openPlans?.();
+    } finally { saveBtn.disabled = false; }
+  });
   resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-form.addEventListener("submit", event => {
+form.addEventListener("submit", async event => {
   event.preventDefault();
 
   const sex = $("sex").value;
@@ -704,6 +748,50 @@ form.addEventListener("submit", event => {
     resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
+
+  const person = {
+    sex, birthDate, retirementCase, retirementMonth,
+    specialMonthsTotal: Number($("specialYears").value || 0) * 12 + Number($("specialMonths").value || 0),
+    impairmentPercent: Number($("impairmentPercent").value || 0),
+    minimumFloorEligible: $("minimumFloorEligible").checked
+  };
+  const requestPayload = {
+    mode: lastEntryMode,
+    importJobId: lastEntryMode === "file" ? lastImportJobId : null,
+    person,
+    periods: basePeriods,
+    autoExtend: $("autoExtend").checked,
+    forecastOptions: forecastOptions()
+  };
+
+  await window.PensionAccount?.ready;
+  const commercial = Boolean(window.PensionAccount?.config?.authEnabled);
+  if (commercial) {
+    if (!window.PensionAccount.requireLogin()) return;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Đang tính…";
+    try {
+      const response = await window.PensionAccount.authorizedFetch("/api/calculate", { method: "POST", body: JSON.stringify(requestPayload) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const err = new Error(payload.error || `HTTP ${response.status}`); err.status = response.status; throw err;
+      }
+      await window.PensionAccount.refreshMe();
+      lastCalculationPayload = { mode: payload.mode || lastEntryMode, request: requestPayload, result: { avg: payload.avg, result: payload.result, input: payload.input } };
+      renderResult(payload.avg, payload.result, payload.input);
+    } catch (error) {
+      resultBox.innerHTML = `<div class="alert error"><strong>Chưa thể tính:</strong> ${escapeHtml(error.message)}</div>`;
+      resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (error.status === 402) window.PensionAccount.openPlans();
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Tính lương hưu";
+    }
+    return;
+  }
+
+  // Chế độ phát triển khi chưa cấu hình Supabase: vẫn tính cục bộ để kiểm thử engine.
   let periods = basePeriods;
   let forecastWarnings = [];
   if ($("autoExtend").checked) {
@@ -711,33 +799,15 @@ form.addEventListener("submit", event => {
     periods = [...basePeriods, ...projection.periods];
     forecastWarnings = projection.warnings;
   }
-
   const avg = calculateAverageBase(periods, { retirementMonth });
   avg.warnings = [...new Set([...(forecastWarnings || []), ...(avg.warnings || [])])];
   if (!avg.ok) {
-    resultBox.innerHTML = `
-      <div class="alert error"><strong>Chưa thể tính mức bình quân.</strong><ul>${avg.errors.map(e => `<li>${escapeHtml(e)}</li>`).join("")}</ul></div>
-      ${avg.warnings?.length ? `<div class="alert warning"><ul>${avg.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul></div>` : ""}
-    `;
-    resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    resultBox.innerHTML = `<div class="alert error"><strong>Chưa thể tính mức bình quân.</strong><ul>${avg.errors.map(e => `<li>${escapeHtml(e)}</li>`).join("")}</ul></div>`;
     return;
   }
-
-  const input = {
-    sex,
-    birthDate,
-    retirementCase,
-    retirementMonth,
-    averageBase: avg.averageBase,
-    totalMonths: avg.totalMonths,
-    compulsoryMonths: avg.compulsoryMonths,
-    firstCompulsoryYm: avg.firstCompulsoryYm,
-    specialMonthsTotal: Number($("specialYears").value || 0) * 12 + Number($("specialMonths").value || 0),
-    impairmentPercent: Number($("impairmentPercent").value || 0),
-    minimumFloorEligible: $("minimumFloorEligible").checked
-  };
-
+  const input = { ...person, averageBase: avg.averageBase, totalMonths: avg.totalMonths, compulsoryMonths: avg.compulsoryMonths, firstCompulsoryYm: avg.firstCompulsoryYm };
   const result = calculatePension(input);
+  lastCalculationPayload = { mode:lastEntryMode, request:requestPayload, result:{avg,result,input} };
   renderResult(avg, result, input);
 });
 

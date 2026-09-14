@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Quản trị · Tính lương hưu</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header admin-header">
+    <div class="shell header-inner admin-header-inner">
+      <div>
+        <p class="eyebrow">TRANG QUẢN TRỊ</p>
+        <h1>Vận hành dịch vụ tính lương hưu</h1>
+        <p class="lead">Theo dõi tài khoản, lượt sử dụng, thời gian nhập hồ sơ, đơn hàng và các gói dịch vụ.</p>
+      </div>
+      <div class="header-actions">
+        <a class="button secondary small" href="/">← Về công cụ tính</a>
+        <button class="button secondary small" id="adminLogoutBtn" type="button">Đăng xuất</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell admin-shell">
+    <div id="adminGate" class="card admin-gate">
+      <h2>Đang kiểm tra quyền quản trị…</h2>
+      <p>Trang này chỉ truy cập được bằng tài khoản có vai trò <b>admin</b>.</p>
+    </div>
+
+    <div id="adminApp" hidden>
+      <section class="admin-metrics" id="metricCards"></section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div><span class="step">01</span><h2>Tài khoản đăng ký</h2></div>
+          <p>Có thể cộng lượt sử dụng hoặc tạm khóa tài khoản khi cần.</p>
+        </div>
+        <div id="userMessage"></div>
+        <div class="admin-toolbar">
+          <button class="button secondary small" id="refreshUsersBtn" type="button">Làm mới</button>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table" id="usersTable">
+            <thead><tr><th>Tài khoản</th><th>Ngày đăng ký</th><th>Trạng thái</th><th>Lượt còn lại</th><th>Cộng lượt</th><th>Thao tác</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div><span class="step">02</span><h2>Gói đăng ký</h2></div>
+          <p>Giá và số lượt có thể điều chỉnh trực tiếp, không cần sửa mã nguồn.</p>
+        </div>
+        <div id="planMessage"></div>
+        <form id="planForm" class="admin-plan-form">
+          <label class="field"><span>Mã gói</span><input id="planCode" required placeholder="VD: COMBO_99" /></label>
+          <label class="field"><span>Tên gói</span><input id="planName" required placeholder="VD: Combo 99K" /></label>
+          <label class="field"><span>Giá bán (VND)</span><input id="planPrice" type="number" min="0" step="1000" required /></label>
+          <label class="field"><span>Lượt nhập trực tiếp</span><input id="planDirect" type="number" min="0" value="0" /></label>
+          <label class="field"><span>Lượt nhập hồ sơ</span><input id="planFile" type="number" min="0" value="0" /></label>
+          <label class="field"><span>Lượt lưu lịch sử</span><input id="planHistory" type="number" min="0" value="0" /></label>
+          <label class="field admin-span-2"><span>Mô tả</span><input id="planDescription" placeholder="Mô tả ngắn hiển thị cho khách hàng" /></label>
+          <button class="button primary" type="submit">Thêm gói</button>
+        </form>
+        <div class="table-wrap admin-table-gap">
+          <table class="admin-table" id="plansTable">
+            <thead><tr><th>Gói</th><th>Giá</th><th>Trực tiếp</th><th>Hồ sơ</th><th>Lưu</th><th>Đang bán</th><th>Thao tác</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div><span class="step">03</span><h2>Đơn hàng chờ xác nhận</h2></div>
+          <p>Bản MVP dùng chuyển khoản ngân hàng; admin xác nhận thanh toán để hệ thống tự cộng lượt.</p>
+        </div>
+        <div id="orderMessage"></div>
+        <div class="table-wrap">
+          <table class="admin-table" id="ordersTable">
+            <thead><tr><th>Mã</th><th>Tài khoản</th><th>Gói</th><th>Số tiền</th><th>Ngày tạo</th><th>Trạng thái</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div><span class="step">04</span><h2>Hiệu năng đọc hồ sơ</h2></div>
+          <p>Theo dõi parser/model và thời gian xử lý để tối ưu chi phí – tốc độ.</p>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table" id="importsTable">
+            <thead><tr><th>Thời điểm</th><th>Kiểu xử lý</th><th>Model</th><th>Thời gian</th><th>Trạng thái</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="modal-backdrop" id="adminAuthModal" hidden>
+    <section class="modal-card auth-card">
+      <h2>Đăng nhập quản trị</h2>
+      <p class="muted-copy">Dùng tài khoản đã được gán vai trò admin trong Supabase.</p>
+      <div id="adminAuthMessage"></div>
+      <div class="auth-section">
+        <label class="field"><span>Email</span><input id="adminEmail" type="email" autocomplete="email" /></label>
+        <label class="field"><span>Mật khẩu</span><input id="adminPassword" type="password" autocomplete="current-password" /></label>
+        <button class="button primary" id="adminLoginBtn" type="button">Đăng nhập</button>
+        <button class="button google-button" id="adminGoogleBtn" type="button">Đăng nhập bằng Google</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
   "name": "vn-pension-calculator",
-  "version": "2.4.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "description": "Vietnam pension calculator based on contribution history, allowances, multi-file AI extraction, and retirement projections.",
@@ -18,7 +18,8 @@
     "openai": "^5.20.3",
     "pdfjs-dist": "^5.4.149",
     "word-extractor": "^1.0.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@supabase/supabase-js": "^2.57.4"
   },
   "engines": {
     "node": ">=20"
