@@ -5,6 +5,7 @@ import {
   stateAverageWindowMonths
 } from "./rules.js";
 import { addMonthsToYm, indexToYm, ymToIndex } from "./pension.js";
+import { findSalaryScaleCandidates } from "./salary-scales.js";
 
 const REGIMES = new Set(["state", "employer", "voluntary"]);
 const VALUE_TYPES = new Set(["coefficient", "vnd"]);
@@ -259,7 +260,7 @@ function adjustedMonthlyValue(record, context) {
         if (!historicalBase) {
           return {
             value: null,
-            error: `Tháng ${monthLabel(record.ym)} thuộc chế độ lương Nhà nước trước 2016 nhưng nhập bằng VND và chưa có mức lương cơ sở lịch sử trong bộ dữ liệu. Hãy nhập bằng hệ số để tính minh bạch.`
+            error: `Tháng ${monthLabel(record.ym)} nằm trong phần lương Nhà nước được dùng để tính bình quân nhưng hồ sơ chỉ ghi VND ở giai đoạn trước 01/04/1993. Giai đoạn này phải chuyển xếp theo chế độ tiền lương lịch sử; cần bổ sung hệ số/ngạch bậc hoặc dữ liệu chuyển xếp để quy đổi chính xác.`
           };
         }
         const historicalTotal = record.amountVnd + record.allowanceVnd;
@@ -325,12 +326,144 @@ function lastValidPeriod(periods) {
     .sort((a, b) => ymToIndex(b.to) - ymToIndex(a.to))[0] || null;
 }
 
+function stateCoefficientTimeline(periods = []) {
+  const monthMap = new Map();
+  periods.map(normalizeContributionRow).forEach((row, sourceIndex) => {
+    if (row.regime !== "state" || row.valueType !== "coefficient" || row.coefficient <= 0) return;
+    if (!validYm(row.from) || !validYm(row.to) || ymToIndex(row.from) > ymToIndex(row.to)) return;
+    for (let idx = ymToIndex(row.from); idx <= ymToIndex(row.to); idx++) {
+      monthMap.set(indexToYm(idx), { ym: indexToYm(idx), coefficient: row.coefficient, sourceIndex });
+    }
+  });
+  return [...monthMap.values()].sort((a, b) => ymToIndex(a.ym) - ymToIndex(b.ym));
+}
+
+function coefficientSegments(periods = []) {
+  const timeline = stateCoefficientTimeline(periods);
+  const segments = [];
+  for (const item of timeline) {
+    const last = segments[segments.length - 1];
+    const contiguous = last && ymToIndex(item.ym) === ymToIndex(last.to) + 1;
+    const same = last && Math.abs(last.coefficient - item.coefficient) <= 0.0001;
+    if (contiguous && same) {
+      last.to = item.ym;
+    } else {
+      segments.push({ from: item.ym, to: item.ym, coefficient: item.coefficient });
+    }
+  }
+  return segments;
+}
+
+function scaleSequenceScore(scale, recentSegments) {
+  if (!recentSegments.length) return -1;
+  const current = recentSegments[recentSegments.length - 1];
+  const currentIndex = scale.coefficients.findIndex(x => Math.abs(x - current.coefficient) <= 0.005);
+  if (currentIndex < 0) return -1;
+
+  let score = 1;
+  let scaleIndex = currentIndex;
+  for (let i = recentSegments.length - 2; i >= 0 && scaleIndex > 0; i--) {
+    const prev = recentSegments[i];
+    if (Math.abs(scale.coefficients[scaleIndex - 1] - prev.coefficient) <= 0.005) {
+      score += 2;
+      scaleIndex -= 1;
+    } else if (Math.abs(scale.coefficients[scaleIndex] - prev.coefficient) <= 0.005) {
+      score += 0.2;
+    } else {
+      break;
+    }
+  }
+  return score;
+}
+
+/**
+ * Tự nhận diện thông số nâng bậc từ lịch sử hệ số lương Nhà nước.
+ * - Tháng bắt đầu bậc hiện tại: tháng đầu tiên của chuỗi liên tục có hệ số hiện tại.
+ * - Chu kỳ: ưu tiên khoảng cách quan sát được giữa các lần đổi hệ số nếu khớp 24/36/60;
+ *   nếu không, dùng chu kỳ của thang hệ số nhận diện được.
+ * - Mức tăng và hệ số tối đa: lấy từ thang hệ số nếu nhận diện đủ chắc chắn.
+ *
+ * Không ép chọn thang lương khi một hệ số hiện tại thuộc nhiều thang mà lịch sử không
+ * đủ phân biệt; trường hợp này trả warning để người dùng kiểm tra.
+ */
+export function inferStateSalaryProgression(periods = []) {
+  const segments = coefficientSegments(periods);
+  if (!segments.length) {
+    return { applicable: false, confidence: "none", warnings: ["Chưa có lịch sử lương Nhà nước theo hệ số để tự xác định thông số nâng bậc."] };
+  }
+
+  const current = segments[segments.length - 1];
+  const recent = segments.slice(-4);
+  const candidates = findSalaryScaleCandidates(current.coefficient)
+    .map(item => ({ ...item, score: scaleSequenceScore(item.scale, recent) }))
+    .sort((a, b) => b.score - a.score);
+
+  let chosen = null;
+  if (candidates.length === 1) {
+    chosen = candidates[0];
+  } else if (candidates.length > 1 && candidates[0].score > candidates[1].score + 0.5) {
+    chosen = candidates[0];
+  }
+
+  const observedCadences = [];
+  for (let i = Math.max(1, segments.length - 4); i < segments.length; i++) {
+    const diff = ymToIndex(segments[i].from) - ymToIndex(segments[i - 1].from);
+    if ([24, 36, 60].includes(diff)) observedCadences.push(diff);
+  }
+  const observedCadence = observedCadences.length && observedCadences.every(x => x === observedCadences[0])
+    ? observedCadences[0]
+    : null;
+
+  const warnings = [];
+  let coefficientStep = 0;
+  let maxCoefficient = 0;
+  let gradeNumber = null;
+  let scaleName = null;
+  let cadenceMonths = observedCadence || chosen?.scale?.cadenceMonths || 0;
+
+  if (chosen) {
+    const coeffs = chosen.scale.coefficients;
+    gradeNumber = chosen.index + 1;
+    scaleName = chosen.scale.name;
+    maxCoefficient = coeffs[coeffs.length - 1];
+    if (chosen.index < coeffs.length - 1) coefficientStep = Number((coeffs[chosen.index + 1] - coeffs[chosen.index]).toFixed(4));
+    else if (chosen.index > 0) coefficientStep = Number((coeffs[chosen.index] - coeffs[chosen.index - 1]).toFixed(4));
+    if (observedCadence && observedCadence !== chosen.scale.cadenceMonths) {
+      warnings.push(`Lịch sử cho thấy chu kỳ đổi hệ số gần nhất là ${observedCadence} tháng, khác chu kỳ thông thường ${chosen.scale.cadenceMonths} tháng của nhóm ${chosen.scale.name}; web ưu tiên lịch sử thực tế để dự báo.`);
+    }
+  } else if (candidates.length > 1) {
+    warnings.push(`Hệ số hiện tại ${current.coefficient.toFixed(2)} xuất hiện ở nhiều thang lương; lịch sử chưa đủ để tự xác định chắc chắn mức tăng và hệ số tối đa.`);
+  } else {
+    warnings.push(`Hệ số hiện tại ${current.coefficient.toFixed(2)} chưa khớp các thang hệ số phổ biến đã tích hợp; web chỉ dùng mốc thay đổi hệ số quan sát được nếu có.`);
+  }
+
+  if (!cadenceMonths) {
+    warnings.push("Chưa đủ căn cứ tự xác định chu kỳ nâng bậc 24/36/60 tháng từ lịch sử hệ số.");
+  }
+
+  return {
+    applicable: true,
+    currentCoefficient: current.coefficient,
+    gradeStartMonth: current.from,
+    raiseCadenceMonths: cadenceMonths,
+    coefficientStep,
+    maxCoefficient,
+    scaleId: chosen?.scale?.id || null,
+    scaleName,
+    gradeNumber,
+    atMax: Boolean(chosen && chosen.index === chosen.scale.coefficients.length - 1),
+    confidence: chosen ? (recent.length >= 2 ? "high" : "medium") : (observedCadence ? "partial" : "low"),
+    observedChanges: segments.map(x => ({ ...x })),
+    warnings
+  };
+}
+
 /**
  * Tạo các giai đoạn giả định từ tháng sau giai đoạn đóng cuối cùng đến tháng nghỉ hưu.
  * - Nếu nhập VND: giữ nguyên mức tiền hiện tại (và phụ cấp VND nếu là lương doanh nghiệp).
- * - Nếu lương Nhà nước theo hệ số: có thể dự kiến nâng bậc theo chu kỳ 24/36/60 tháng.
- *   Chu kỳ là điều kiện thời gian xét nâng bậc; hệ số tăng mỗi bậc/max hệ số do người dùng
- *   nhập theo đúng ngạch/chức danh vì không thể suy ra chỉ từ một hệ số hiện tại.
+ * - Nếu lương Nhà nước theo hệ số: dự kiến nâng bậc theo thông số đã được tự nhận diện
+ *   từ lịch sử đổi hệ số/thang hệ số hoặc được người dùng hiệu chỉnh. Không ép suy đoán
+ *   khi dữ liệu lịch sử không đủ phân biệt ngạch/thang lương.
  */
 export function buildProjectedPeriods(periods, retirementMonth, options = {}) {
   const warnings = [];
@@ -372,7 +505,7 @@ export function buildProjectedPeriods(periods, retirementMonth, options = {}) {
   let currentCoefficient = latest.coefficient;
 
   if (!gradeStartMonth || ![24, 36, 60].includes(cadenceMonths) || coefficientStep <= 0) {
-    warnings.push("Chưa đủ thông tin để dự kiến nâng bậc hệ số; web giữ nguyên hệ số hiện tại đến nghỉ hưu. Hãy nhập tháng bắt đầu hưởng bậc hiện tại, chu kỳ xét nâng bậc và mức tăng hệ số nếu muốn mô phỏng nâng bậc.");
+    warnings.push("Chưa đủ dữ liệu để tự nhận diện đầy đủ lịch nâng bậc; web giữ nguyên hệ số hiện tại đến nghỉ hưu. Có thể kiểm tra hoặc hiệu chỉnh tháng bắt đầu bậc, chu kỳ và mức tăng nếu hồ sơ có quyết định xếp/nâng bậc riêng.");
     nextRaiseMonth = null;
   }
 
@@ -393,7 +526,7 @@ export function buildProjectedPeriods(periods, retirementMonth, options = {}) {
       ym,
       coefficient: Number(currentCoefficient.toFixed(4)),
       projected: true,
-      note: "Dự kiến tự bổ sung đến tháng nghỉ hưu theo lịch nâng bậc đã cấu hình"
+      note: "Dự kiến tự bổ sung đến tháng nghỉ hưu theo lịch nâng bậc tự nhận diện/đã hiệu chỉnh"
     });
   }
 
@@ -423,10 +556,45 @@ export function calculateAverageBase(periods, { retirementMonth, pensionStartMon
   const projectedMonths = months.filter(m => m.projected);
   const firstCompulsoryYm = firstMonth(compulsory);
   const pensionYear = Number(startMonth.slice(0, 4));
-
   const context = { firstCompulsoryYm, pensionStartMonth: startMonth, pensionYear };
-  const adjusted = months.map(record => ({ record, ...adjustedMonthlyValue(record, context) }));
+
+  // Chọn đúng số tháng lương Nhà nước dùng để tính bình quân TRƯỚC khi quy đổi.
+  // Nhờ đó các tháng rất cũ nằm ngoài cửa sổ 5/6/8/10/15/20 năm không thể làm
+  // phép tính dừng chỉ vì dữ liệu lịch sử của tháng đó không đủ để chuyển đổi.
+  let stateWindow = null;
+  let selectedStateMonths = [];
+  if (stateMonths.length) {
+    const windowMonths = stateAverageWindowMonths(firstCompulsoryYm);
+    const stateSortedDesc = [...stateMonths].sort((a, b) => ymToIndex(b.ym) - ymToIndex(a.ym));
+    selectedStateMonths = windowMonths ? stateSortedDesc.slice(0, windowMonths) : stateSortedDesc;
+    stateWindow = {
+      prescribedMonths: windowMonths,
+      usedMonths: selectedStateMonths.length,
+      from: selectedStateMonths.length ? selectedStateMonths[selectedStateMonths.length - 1].ym : null,
+      to: selectedStateMonths.length ? selectedStateMonths[0].ym : null
+    };
+    if (windowMonths && selectedStateMonths.length < windowMonths) {
+      warnings.push(`Dữ liệu lương Nhà nước hiện chỉ có ${selectedStateMonths.length}/${windowMonths} tháng cần thiết để tính bình quân theo mốc bắt đầu tham gia. Kết quả chỉ phản ánh dữ liệu đã nhập.`);
+    }
+  }
+
+  const selectedStateSet = new Set(selectedStateMonths.map(m => m.ym));
+  const adjusted = months.map(record => {
+    if (record.regime === "state" && !selectedStateSet.has(record.ym)) {
+      return {
+        record,
+        value: null,
+        method: "Không thuộc số tháng lương Nhà nước được chọn để tính bình quân",
+        skipped: true,
+        provisional: false,
+        warnings: []
+      };
+    }
+    return { record, ...adjustedMonthlyValue(record, context) };
+  });
+
   for (const item of adjusted) {
+    if (item.skipped) continue;
     if (item.error) errors.push(item.error);
     if (item.warnings?.length) warnings.push(...item.warnings);
   }
@@ -439,30 +607,18 @@ export function calculateAverageBase(periods, { retirementMonth, pensionStartMon
       totalMonths: months.length,
       compulsoryMonths: compulsory.length,
       voluntaryMonths: voluntaryMonthsList.length,
-      projectedMonths: projectedMonths.length
+      projectedMonths: projectedMonths.length,
+      stateWindow
     };
   }
 
   const byYm = new Map(adjusted.map(item => [item.record.ym, item]));
   let compulsoryAverage = 0;
   let stateAverage = null;
-  let stateWindow = null;
 
   if (compulsory.length) {
-    if (stateMonths.length) {
-      const windowMonths = stateAverageWindowMonths(firstCompulsoryYm);
-      const stateSortedDesc = [...stateMonths].sort((a, b) => ymToIndex(b.ym) - ymToIndex(a.ym));
-      const selected = windowMonths ? stateSortedDesc.slice(0, windowMonths) : stateSortedDesc;
-      stateAverage = sum(selected, m => byYm.get(m.ym).value) / selected.length;
-      stateWindow = {
-        prescribedMonths: windowMonths,
-        usedMonths: selected.length,
-        from: selected.length ? selected[selected.length - 1].ym : null,
-        to: selected.length ? selected[0].ym : null
-      };
-      if (windowMonths && selected.length < windowMonths) {
-        warnings.push(`Dữ liệu lương Nhà nước hiện chỉ có ${selected.length}/${windowMonths} tháng cần thiết để tính bình quân theo mốc bắt đầu tham gia. Kết quả chỉ phản ánh dữ liệu đã nhập.`);
-      }
+    if (selectedStateMonths.length) {
+      stateAverage = sum(selectedStateMonths, m => byYm.get(m.ym).value) / selectedStateMonths.length;
     }
 
     if (stateMonths.length && employerMonths.length) {
@@ -485,7 +641,8 @@ export function calculateAverageBase(periods, { retirementMonth, pensionStartMon
     averageBase = voluntaryAdjustedSum / voluntaryMonthsList.length;
   }
 
-  const provisional = adjusted.some(x => x.provisional) || pensionYear > 2026 || projectedMonths.length > 0;
+  const usedAdjusted = adjusted.filter(x => !x.skipped);
+  const provisional = usedAdjusted.some(x => x.provisional) || pensionYear > 2026 || projectedMonths.length > 0;
   if (pensionYear > 2026) {
     warnings.push(`Năm bắt đầu hưởng ${pensionYear} chưa có đầy đủ hệ số điều chỉnh/mức tham chiếu tương lai trong bộ dữ liệu. Phần tương lai được tính theo dữ liệu pháp lý mới nhất đã tích hợp.`);
   }
@@ -518,6 +675,7 @@ export function calculateAverageBase(periods, { retirementMonth, pensionStartMon
       valueType: item.record.valueType,
       adjustedValue: item.value,
       method: item.method,
+      skipped: Boolean(item.skipped),
       projected: item.record.projected
     }))
   };

@@ -187,3 +187,34 @@ input[readonly] { background: #f2f4f6; color: #48515a; font-weight: 700; }
 .requirements-grid li { margin: 6px 0; line-height: 1.45; }
 .data-requirements p { margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed var(--line); line-height: 1.5; }
 @media (max-width: 760px) { .requirements-grid { grid-template-columns: 1fr; gap: 0; } }
+
+/* v2.3: bước kiểm tra dữ liệu sau khi đọc hồ sơ */
+.import-review { margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: #fff; }
+.import-review-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.import-review-heading > div:first-child { display: flex; flex-direction: column; gap: 4px; }
+.import-review-heading span { color: var(--muted); font-size: .8rem; }
+.person-review { flex: 0 0 auto; font-size: .78rem; color: #4f5963; background: #f7f8fa; border-radius: 9px; padding: 8px 10px; }
+.import-review-wrap { margin-top: 8px; }
+.import-review-table { width: 100%; border-collapse: collapse; min-width: 900px; font-size: .78rem; }
+.import-review-table th, .import-review-table td { border-bottom: 1px solid var(--line); padding: 9px 8px; vertical-align: top; text-align: left; }
+.import-review-table th { color: var(--muted); background: #fafbfc; font-size: .73rem; }
+.import-review-table th:nth-child(1) { width: 42px; }
+.import-review-table th:nth-child(2) { width: 150px; }
+.import-review-table th:nth-child(3) { width: 180px; }
+.review-fields { display: flex; flex-wrap: wrap; gap: 5px; }
+.review-pill { display: inline-flex; border-radius: 999px; padding: 3px 7px; background: #f0f3f5; color: #46515b; line-height: 1.25; }
+.review-pill.ok { background: var(--ok-bg); color: var(--ok); }
+.review-pill.missing { background: var(--error-bg); color: var(--error); }
+.review-status { display: inline-flex; border-radius: 999px; padding: 4px 8px; font-weight: 750; white-space: nowrap; }
+.review-status.ok { background: var(--ok-bg); color: var(--ok); }
+.review-status.missing { background: var(--warn-bg); color: var(--warn); }
+.import-review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+#importReviewWarnings .alert { margin: 12px 0 0; }
+.forecast-inference { margin-bottom: 12px; padding: 11px 13px; border: 1px solid #d8e0e7; background: #f8fafb; border-radius: 10px; color: #46515b; font-size: .8rem; line-height: 1.5; }
+.forecast-inference strong { color: #202832; }
+.forecast-inference ul { margin: 6px 0 0 18px; padding: 0; }
+
+@media (max-width: 760px) {
+  .import-review-heading { flex-direction: column; }
+  .person-review { width: 100%; }
+}

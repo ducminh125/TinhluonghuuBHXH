@@ -1,4 +1,4 @@
-# VN Pension Calculator v2.2
+# VN Pension Calculator v2.3
 
 Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024. Dữ liệu hồ sơ có thể được nhập trực tiếp hoặc trích xuất từ ảnh/PDF/Word/Excel; phép tính lương hưu được thực hiện bởi engine quy tắc trong source code.
 
@@ -12,11 +12,12 @@ Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024
 - Tính mức bình quân từ lịch sử đóng thay vì yêu cầu người dùng tự nhập mức bình quân.
 - Cho phép nhập các khoản **phụ cấp/khoản bổ sung thuộc căn cứ đóng BHXH** trước khi tính bình quân.
 - Import đồng thời nhiều **JPG / PNG / WEBP / PDF / Word / Excel / CSV / TXT**.
+- Sau khi đọc file, hiển thị bảng **“Dữ liệu nhận diện được / Dữ liệu còn thiếu”**; dữ liệu chỉ được đưa vào quá trình đóng khi người dùng xác nhận.
 - Tự lọc phần thời gian bị trùng do nhiều ảnh chụp có vùng gối nhau.
 - Nếu cùng một tháng xuất hiện hai giá trị khác nhau, hệ thống **không tự chọn số mới** mà giữ bản đọc trước và cảnh báo tháng cần đối chiếu.
 - Tùy chọn **tự bổ sung quá trình đóng đến tháng nghỉ hưu**:
   - mức đóng bằng VND: giữ mức lương/thu nhập hiện tại;
-  - lương Nhà nước theo hệ số: mô phỏng nâng bậc theo chu kỳ người dùng cấu hình và tự áp dụng các mốc lương cơ sở đã tích hợp.
+  - lương Nhà nước theo hệ số: tự nhận diện tháng bắt đầu bậc hiện tại, chu kỳ 24/36/60 tháng, mức tăng hệ số và hệ số tối đa từ lịch sử đổi hệ số + thang hệ số tích hợp; người dùng chỉ cần hiệu chỉnh khi hồ sơ có trường hợp đặc thù.
 - Kết quả tương lai chỉ có một ghi chú ngắn **“Kết quả đang tạm tính”** ở cuối phần kết quả.
 
 ## 2. Cơ sở pháp lý được mô hình hóa
@@ -26,6 +27,7 @@ Các rule chính hiện đặt trong `js/rules.js`, `js/contributions.js` và `j
 - Luật Bảo hiểm xã hội số **41/2024/QH15**, hiệu lực từ 01/07/2025;
 - Nghị định **135/2020/NĐ-CP** về tuổi nghỉ hưu;
 - Nghị định **158/2025/NĐ-CP** quy định chi tiết về BHXH bắt buộc;
+- Nghị định **204/2004/NĐ-CP** và các sửa đổi còn hiệu lực (trong đó có Nghị định **07/2026/NĐ-CP**) làm cơ sở cho các thang hệ số lương phổ biến dùng ở phần nhận diện dự báo;
 - Thông tư **12/2025/TT-BNV** và các quy định hướng dẫn có liên quan;
 - Thông tư **08/2013/TT-BNV**, được sửa đổi bởi Thông tư **03/2021/TT-BNV**, dùng làm cơ sở cho cấu hình chu kỳ nâng bậc thường xuyên;
 - Nghị định **161/2026/NĐ-CP**: mức lương cơ sở 2.530.000 đồng/tháng từ 01/07/2026;
@@ -103,7 +105,14 @@ Nên có thêm, nếu tài liệu thể hiện:
 
 Nếu hồ sơ đã ghi **tổng tiền lương làm căn cứ đóng BHXH**, hệ thống dùng tổng đó và không cộng phụ cấp lần nữa. Nếu hồ sơ tách lương chính và phụ cấp, hai phần được lưu riêng rồi cộng trước khi tính bình quân.
 
-Sau bước trích xuất, dữ liệu được đưa qua `dedupeImportedPeriods()`:
+Sau bước trích xuất, hệ thống **chưa ghi ngay vào quá trình đóng** mà tạo bảng kiểm tra gồm:
+
+- giai đoạn và chế độ đã nhận diện;
+- các trường đã nhận diện được;
+- các trường bắt buộc còn thiếu;
+- trạng thái “Sẵn sàng” hoặc “Cần bổ sung”.
+
+Chỉ dòng đủ **từ tháng, đến tháng, chế độ và mức đóng/hệ số** mới được đưa vào danh sách chờ nhập. Người dùng bấm **“Đưa dữ liệu hợp lệ vào quá trình đóng”** để xác nhận. Sau đó dữ liệu mới đi qua `dedupeImportedPeriods()`:
 
 1. Mỗi giai đoạn được mở rộng theo từng tháng.
 2. Cùng tháng + cùng chế độ + cùng lương/phụ cấp → coi là trùng và chỉ giữ một bản.
@@ -127,14 +136,22 @@ Mức này được kéo dài đến tháng nghỉ hưu.
 
 ### Lương Nhà nước theo hệ số
 
-Web **không tự suy ra ngạch/bậc** chỉ từ hệ số hiện tại. Người dùng cấu hình:
+Web dùng `inferStateSalaryProgression()` để tự xác định từ lịch sử hệ số:
 
-- tháng bắt đầu hưởng bậc hiện tại;
-- chu kỳ xét nâng bậc: 24 / 36 / 60 tháng;
-- mức tăng hệ số mỗi lần;
-- hệ số tối đa nếu muốn giới hạn.
+- **tháng bắt đầu hưởng bậc hiện tại**: tháng đầu tiên của giai đoạn liên tục có hệ số hiện tại;
+- **chu kỳ xét nâng bậc**: ưu tiên khoảng cách thực tế giữa các lần đổi hệ số nếu khớp 24/36/60 tháng, nếu chưa đủ lịch sử thì dùng chu kỳ của thang lương nhận diện được;
+- **mức tăng hệ số mỗi bậc**: chênh lệch sang bậc kế tiếp trong thang hệ số;
+- **hệ số tối đa của ngạch**: bậc cuối của thang hệ số nhận diện được.
+
+Các thang A3.1, A3.2, A2.1, A2.2, A1, A0, B, C... được tách trong `js/salary-scales.js`. Nếu một hệ số xuất hiện ở nhiều thang và lịch sử không đủ phân biệt, engine **không ép chọn** mà chỉ tự điền phần có thể xác định chắc chắn và cảnh báo kiểm tra. Chu kỳ 60/36/24 tháng được mô hình hóa theo Thông tư 08/2013/TT-BNV (được sửa đổi, bổ sung).
 
 Các mốc thay đổi **mức lương cơ sở** có trong `BASE_SALARY_LEVELS` được áp dụng tự động khi quy đổi từng tháng. Nếu tương lai có bảng lương mới, hệ số mới hoặc quy định mới chưa có trong repo, kết quả phải được cập nhật lại.
+
+### Xử lý dữ liệu lương Nhà nước rất cũ
+
+Engine chọn đúng cửa sổ 5/6/8/10/15/20 năm (hoặc toàn bộ thời gian) **trước khi quy đổi giá trị từng tháng**. Vì vậy một tháng VND rất cũ nằm ngoài cửa sổ dùng tính bình quân không còn làm toàn bộ phép tính dừng.
+
+Nếu một tháng **trước 01/04/1993** thực sự nằm trong cửa sổ tính bình quân và hồ sơ chỉ có số tiền VND, engine không tự chia cho một mức lương cơ sở giả định. Trường hợp này cần bổ sung hệ số/ngạch bậc hoặc dữ liệu chuyển xếp tiền lương lịch sử để quy đổi chính xác.
 
 ## 6. Kết quả đang tạm tính
 
@@ -222,6 +239,7 @@ vn-pension-calculator-v2/
 │   ├── rules.js
 │   ├── pension.js
 │   ├── contributions.js
+│   ├── salary-scales.js
 │   └── app.js
 ├── server/
 │   ├── index.js
@@ -257,12 +275,14 @@ Bộ test bao gồm:
 - lịch sử đóng hỗn hợp;
 - BHXH tự nguyện;
 - giữ mức VND hiện tại đến nghỉ hưu;
-- mô phỏng nâng hệ số theo chu kỳ cấu hình;
+- tự nhận diện thang lương, bậc hiện tại, chu kỳ và mức tăng hệ số;
+- hồi quy lỗi lương Nhà nước VND rất cũ nằm ngoài cửa sổ bình quân;
+- mô phỏng nâng hệ số theo chu kỳ tự nhận diện/đã hiệu chỉnh;
 - đánh dấu tạm tính khi dùng dữ liệu tương lai.
 
 ## 12. Khuyến nghị trước khi dùng nghiệp vụ chính thức
 
 - Đối chiếu tối thiểu 20–50 hồ sơ đã có quyết định hưởng thực tế.
-- Bổ sung bảng lương/ngạch/bậc chuyên ngành nếu muốn tự xác định chính xác hệ số nâng bậc thay vì để người dùng cấu hình.
+- Bổ sung thêm bảng lương/ngạch/bậc chuyên ngành ngoài các thang phổ biến đã tích hợp để tăng khả năng tự nhận diện.
 - Cập nhật mức lương cơ sở, mức tham chiếu và hệ số điều chỉnh ngay khi có văn bản mới.
 - Nếu lưu hồ sơ cá nhân lên server, cần bổ sung xác thực, mã hóa, thời hạn lưu và chính sách dữ liệu. Bản hiện tại không lưu hồ sơ vào database.

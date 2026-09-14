@@ -6,7 +6,7 @@ export const LAW_META = {
   retirementDecree: "Nghị định 135/2020/NĐ-CP",
   baseSalaryDecree: "Nghị định 161/2026/NĐ-CP",
   wageRaiseCircular: "Thông tư 08/2013/TT-BNV, được sửa đổi bởi Thông tư 03/2021/TT-BNV",
-  updatedAt: "2026-09-11"
+  updatedAt: "2026-09-14"
 };
 
 // Mức tham chiếu hiện hành. Khi chưa bãi bỏ mức lương cơ sở, mức tham chiếu
@@ -17,9 +17,12 @@ export const REFERENCE_LEVELS = [
 ];
 
 // Mức lương cơ sở dùng để quy đổi trường hợp lương Nhà nước nhập bằng hệ số.
-// Bản v2 có các mốc lịch sử phổ biến từ 1998. Hồ sơ cũ hơn nên nhập hệ số thay vì VND.
+// Các mốc từ cải cách tiền lương 01/04/1993 trở đi. Với thời gian trước 01/04/1993,
+// việc chuyển xếp từ chế độ lương cũ sang chế độ mới cần bảng chuyển xếp chuyên biệt;
+// engine chỉ yêu cầu xử lý nếu tháng đó thực sự nằm trong cửa sổ bình quân.
 export const BASE_SALARY_LEVELS = [
-  { from: "1998-01", amount: 144000 },
+  { from: "1993-04", amount: 120000 },
+  { from: "1997-01", amount: 144000 },
   { from: "2000-01", amount: 180000 },
   { from: "2001-01", amount: 210000 },
   { from: "2003-01", amount: 290000 },

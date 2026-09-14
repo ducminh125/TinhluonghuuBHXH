@@ -185,11 +185,41 @@
                 <div id="selectedFiles" class="selected-files"></div>
               </div>
               <div class="upload-actions">
-                <button class="button dark" type="button" id="importAiBtn">Đọc và điền dữ liệu từ file</button>
-                <p>Hệ thống đọc chung các tệp, ghép quá trình đóng, tự loại tháng trùng hệt nhau do ảnh chụp gối trang và cảnh báo khi cùng tháng có số liệu khác nhau.</p>
+                <button class="button dark" type="button" id="importAiBtn">Đọc dữ liệu từ file</button>
+                <p>Hệ thống đọc chung các tệp, ghép quá trình đóng, tự loại tháng trùng hệt nhau do ảnh chụp gối trang. Kết quả sẽ được hiển thị để kiểm tra trước khi đưa vào quá trình đóng.</p>
               </div>
             </div>
             <div id="importStatus" aria-live="polite"></div>
+
+            <div id="importReview" class="import-review" hidden>
+              <div class="import-review-heading">
+                <div>
+                  <strong>Kiểm tra dữ liệu trước khi đưa vào quá trình đóng</strong>
+                  <span>Đối chiếu “Dữ liệu nhận diện được / Dữ liệu còn thiếu”. Chỉ các dòng đủ dữ liệu bắt buộc mới được đưa vào bảng quá trình đóng.</span>
+                </div>
+                <div id="importPersonReview" class="person-review"></div>
+              </div>
+              <div class="table-wrap import-review-wrap">
+                <table class="import-review-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Giai đoạn</th>
+                      <th>Chế độ</th>
+                      <th>Dữ liệu nhận diện được</th>
+                      <th>Dữ liệu còn thiếu</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody id="importReviewRows"></tbody>
+                </table>
+              </div>
+              <div id="importReviewWarnings"></div>
+              <div class="import-review-actions">
+                <button class="button primary" type="button" id="applyImportBtn">Đưa dữ liệu hợp lệ vào quá trình đóng</button>
+                <button class="button secondary" type="button" id="cancelImportBtn">Bỏ kết quả đọc</button>
+              </div>
+            </div>
           </div>
 
           <div class="forecast-panel">
@@ -197,33 +227,37 @@
               <input id="autoExtend" type="checkbox" />
               <span>
                 <strong>Tự bổ sung quá trình đóng đến khi nghỉ hưu</strong>
-                <small>Nếu dòng cuối là tiền đồng: giữ mức đóng hiện tại. Nếu là lương Nhà nước theo hệ số: có thể mô phỏng nâng bậc theo chu kỳ đã cấu hình.</small>
+                <small>Nếu dòng cuối là tiền đồng: giữ mức đóng hiện tại. Nếu là lương Nhà nước theo hệ số: hệ thống tự nhận diện bậc hiện tại, chu kỳ và thang hệ số từ lịch sử thay đổi hệ số khi đủ dữ liệu.</small>
               </span>
             </label>
 
             <div id="forecastConfig" class="forecast-config" hidden>
+              <div id="forecastInference" class="forecast-inference" hidden></div>
               <div id="coefficientForecastFields" class="form-grid four">
                 <label class="field">
                   <span>Tháng bắt đầu hưởng bậc hiện tại</span>
                   <input id="gradeStartMonth" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" />
-                  <small>Làm căn cứ xác định kỳ xét nâng bậc tiếp theo.</small>
+                  <small>Tự xác định từ tháng thay đổi sang hệ số hiện tại; có thể chỉnh nếu hồ sơ có quyết định đặc thù.</small>
                 </label>
                 <label class="field">
                   <span>Chu kỳ xét nâng bậc</span>
                   <select id="raiseCadenceMonths">
+                    <option value="0">Chưa xác định</option>
                     <option value="36">36 tháng — ngạch/chức danh từ CĐ trở lên</option>
                     <option value="24">24 tháng — trung cấp trở xuống/nhân viên</option>
                     <option value="60">60 tháng — chuyên gia cao cấp</option>
                   </select>
+                  <small>Tự nhận diện từ lịch sử đổi hệ số hoặc nhóm ngạch/chức danh.</small>
                 </label>
                 <label class="field">
                   <span>Mức tăng hệ số mỗi bậc</span>
-                  <input id="coefficientStep" type="number" min="0" step="0.01" placeholder="VD: 0.33" />
-                  <small>Nhập theo đúng bảng lương của ngạch/chức danh.</small>
+                  <input id="coefficientStep" type="number" min="0" step="0.01" placeholder="Tự xác định" />
+                  <small>Tự lấy từ bậc kế tiếp của thang hệ số khi nhận diện đủ chắc chắn.</small>
                 </label>
                 <label class="field">
-                  <span>Hệ số tối đa của ngạch (nếu biết)</span>
-                  <input id="maxCoefficient" type="number" min="0" step="0.01" placeholder="VD: 6.78" />
+                  <span>Hệ số tối đa của ngạch</span>
+                  <input id="maxCoefficient" type="number" min="0" step="0.01" placeholder="Tự xác định" />
+                  <small>Tự lấy từ thang hệ số nhận diện được; có thể chỉnh khi ngạch/chức danh đặc thù.</small>
                 </label>
               </div>
               <div id="forecastPreview" class="forecast-preview"></div>
@@ -256,7 +290,7 @@
           <li><strong>Điều kiện và tỷ lệ hưởng:</strong> áp dụng Luật BHXH số 41/2024/QH15, có hiệu lực từ 01/07/2025.</li>
           <li><strong>Tiền lương làm căn cứ đóng:</strong> thực hiện theo Điều 31 Luật BHXH 2024 và Nghị định 158/2025/NĐ-CP.</li>
           <li><strong>Lương Nhà nước:</strong> cộng các khoản thuộc căn cứ đóng như phụ cấp chức vụ, thâm niên vượt khung, thâm niên nghề và hệ số chênh lệch bảo lưu nếu thực tế có hưởng.</li>
-          <li><strong>Nâng bậc dự kiến:</strong> chu kỳ 24/36/60 tháng được dùng để mô phỏng theo quy định về nâng bậc thường xuyên; việc thực tế được nâng bậc còn phụ thuộc ngạch/chức danh, tiêu chuẩn và quyết định của cơ quan có thẩm quyền.</li>
+          <li><strong>Nâng bậc dự kiến:</strong> tự nhận diện từ lịch sử đổi hệ số và các thang hệ số phổ biến theo Nghị định 204/2004/NĐ-CP; chu kỳ 24/36/60 tháng áp dụng theo quy định về nâng bậc thường xuyên. Việc nâng bậc thực tế vẫn phụ thuộc ngạch/chức danh, tiêu chuẩn và quyết định của cơ quan có thẩm quyền.</li>
           <li><strong>Mức lương cơ sở:</strong> tự áp dụng các mốc đã tích hợp; từ 01/07/2026 là 2.530.000 đồng/tháng.</li>
         </ol>
 

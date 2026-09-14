@@ -71,6 +71,39 @@ function numeric(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+
+function buildPeriodReview(row, index) {
+  const recognized = [];
+  const missing = [];
+
+  if (row.from) recognized.push(`Từ ${row.from.slice(5, 7)}/${row.from.slice(0, 4)}`);
+  else missing.push("Từ tháng/năm");
+  if (row.to) recognized.push(`Đến ${row.to.slice(5, 7)}/${row.to.slice(0, 4)}`);
+  else missing.push("Đến tháng/năm");
+  if (row.from && row.to && row.from > row.to) missing.push("Khoảng thời gian hợp lệ (từ tháng phải ≤ đến tháng)");
+
+  if (row.regime && row.regime !== "unknown") recognized.push("Chế độ tiền lương/thu nhập");
+  else missing.push("Chế độ tiền lương/thu nhập");
+
+  if (row.valueType === "coefficient" && row.coefficient > 0) recognized.push(`Hệ số ${row.coefficient}`);
+  else if (row.valueType === "vnd" && row.amountVnd > 0) recognized.push(`Mức đóng ${Math.round(row.amountVnd).toLocaleString("vi-VN")} đ`);
+  else missing.push(row.valueType === "coefficient" ? "Hệ số lương" : "Mức tiền làm căn cứ đóng");
+
+  if (row.positionAllowanceCoeff > 0) recognized.push(`PC chức vụ ${row.positionAllowanceCoeff}`);
+  if (row.reservedDifferenceCoeff > 0) recognized.push(`CL bảo lưu ${row.reservedDifferenceCoeff}`);
+  if (row.seniorityBeyondPercent > 0) recognized.push(`TNVK ${row.seniorityBeyondPercent}%`);
+  if (row.professionalSeniorityPercent > 0) recognized.push(`Thâm niên nghề ${row.professionalSeniorityPercent}%`);
+  if (row.allowanceVnd > 0) recognized.push(`Phụ cấp tính đóng ${Math.round(row.allowanceVnd).toLocaleString("vi-VN")} đ`);
+  if (row.note) recognized.push("Ghi chú/ngạch/bậc/chức danh");
+
+  return {
+    index,
+    ...row,
+    recognizedFields: recognized,
+    missingFields: missing,
+    validForImport: missing.length === 0
+  };
+}
 function normalizePeriod(row, warnings, index) {
   const regime = ["state", "employer", "voluntary", "unknown"].includes(row?.regime) ? row.regime : "unknown";
   const valueType = ["coefficient", "vnd"].includes(row?.valueType) ? row.valueType : "vnd";
@@ -148,22 +181,30 @@ export async function extractBhxhWithAI({ text, images = [], filename = "hồ s�
     ...(Array.isArray(data.warnings) ? data.warnings.map(String) : [])
   ];
   const rawPeriods = (Array.isArray(data.periods) ? data.periods : []).map((row, index) => normalizePeriod(row, warnings, index));
-  const deduped = dedupeImportedPeriods(rawPeriods);
+  const reviewPeriods = rawPeriods.map((row, index) => buildPeriodReview(row, index));
+  const importable = reviewPeriods.filter(row => row.validForImport).map(({ recognizedFields, missingFields, validForImport, index, ...row }) => row);
+  const deduped = dedupeImportedPeriods(importable);
   warnings.push(...deduped.warnings);
 
-  if (!deduped.periods.length) warnings.push("AI chưa nhận diện được giai đoạn đóng BHXH nào; cần nhập thủ công hoặc dùng tài liệu rõ hơn.");
+  const incompleteCount = reviewPeriods.filter(row => !row.validForImport).length;
+  if (incompleteCount) warnings.push(`Có ${incompleteCount} dòng chưa đủ dữ liệu bắt buộc; các dòng này sẽ không được đưa vào quá trình đóng cho đến khi người dùng bổ sung.`);
+  if (!reviewPeriods.length) warnings.push("Chưa nhận diện được giai đoạn đóng BHXH nào; cần nhập thủ công hoặc dùng tài liệu rõ hơn.");
 
   return {
     person: {
       birthDate: /^\d{4}-\d{2}-\d{2}$/.test(String(data.person?.birthDate || "")) ? data.person.birthDate : null,
       sex: normalizeSex(data.person?.sex)
     },
+    reviewPeriods,
     periods: deduped.periods,
     warnings: [...new Set(warnings)],
     meta: {
       model,
       source: "AI",
       sourceCount,
+      recognizedRows: reviewPeriods.length,
+      incompleteRows: incompleteCount,
+      importableRows: deduped.periods.length,
       duplicatesRemoved: deduped.duplicatesRemoved,
       conflicts: deduped.conflicts
     }

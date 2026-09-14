@@ -5,6 +5,7 @@ import {
   calculateAverageBase,
   dedupeImportedPeriods,
   expandContributionPeriods,
+  inferStateSalaryProgression,
   stateContributionCoefficient
 } from "../js/contributions.js";
 
@@ -179,4 +180,58 @@ test("coefficient projection applies configured regular grade raises", () => {
   assert.equal(projection.periods[1].from, "2028-07");
   assert.equal(projection.periods[1].to, "2028-08");
   closeTo(projection.periods[1].coefficient, 4.66, 0.00001);
+});
+
+
+test("old state VND outside the prescribed state averaging window does not block calculation", () => {
+  const result = calculateAverageBase([
+    { from: "1992-01", to: "1992-12", regime: "state", valueType: "vnd", amountVnd: 100000 },
+    { from: "2021-01", to: "2025-12", regime: "state", valueType: "coefficient", coefficient: 4 }
+  ], { retirementMonth: "2026-05" });
+  assert.equal(result.ok, true);
+  assert.equal(result.stateWindow.prescribedMonths, 60);
+  assert.equal(result.stateWindow.from, "2021-01");
+  assert.equal(result.stateWindow.to, "2025-12");
+  const old = result.monthlyRecords.find(row => row.ym === "1992-01");
+  assert.equal(old.skipped, true);
+  assert.match(old.method, /Không thuộc số tháng/);
+});
+
+test("salary progression inference identifies A1 grade and 36-month cadence", () => {
+  const inference = inferStateSalaryProgression([
+    { from: "2018-07", to: "2021-06", regime: "state", valueType: "coefficient", coefficient: 3.66 },
+    { from: "2021-07", to: "2024-06", regime: "state", valueType: "coefficient", coefficient: 3.99 },
+    { from: "2024-07", to: "2026-06", regime: "state", valueType: "coefficient", coefficient: 4.32 }
+  ]);
+  assert.equal(inference.applicable, true);
+  assert.equal(inference.gradeStartMonth, "2024-07");
+  assert.equal(inference.raiseCadenceMonths, 36);
+  closeTo(inference.coefficientStep, 0.33, 0.00001);
+  closeTo(inference.maxCoefficient, 4.98, 0.00001);
+  assert.equal(inference.scaleId, "A1");
+  assert.equal(inference.gradeNumber, 7);
+});
+
+test("salary progression inference identifies B grade and 24-month cadence", () => {
+  const inference = inferStateSalaryProgression([
+    { from: "2022-01", to: "2023-12", regime: "state", valueType: "coefficient", coefficient: 2.66 },
+    { from: "2024-01", to: "2025-12", regime: "state", valueType: "coefficient", coefficient: 2.86 },
+    { from: "2026-01", to: "2026-06", regime: "state", valueType: "coefficient", coefficient: 3.06 }
+  ]);
+  assert.equal(inference.raiseCadenceMonths, 24);
+  closeTo(inference.coefficientStep, 0.20, 0.00001);
+  closeTo(inference.maxCoefficient, 4.06, 0.00001);
+  assert.equal(inference.scaleId, "B");
+});
+
+test("ambiguous current coefficient does not force a salary scale without enough history", () => {
+  const inference = inferStateSalaryProgression([
+    { from: "2026-01", to: "2026-06", regime: "state", valueType: "coefficient", coefficient: 1.86 }
+  ]);
+  assert.equal(inference.applicable, true);
+  assert.equal(inference.gradeStartMonth, "2026-01");
+  assert.equal(inference.scaleId, null);
+  assert.equal(inference.coefficientStep, 0);
+  assert.equal(inference.maxCoefficient, 0);
+  assert.ok(inference.warnings.some(w => w.includes("nhiều thang lương")));
 });
