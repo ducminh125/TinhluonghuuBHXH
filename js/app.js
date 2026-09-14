@@ -23,6 +23,8 @@ const number = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
 let pendingImport = null;
 let lastForecastHistorySignature = "";
 let forecastInferenceCache = null;
+let importProgressTimer = null;
+let importProgressStartedAt = 0;
 
 $("lawVersion").textContent = `${LAW_META.law} · ${LAW_META.decree} · ${LAW_META.retirementDecree} · cập nhật ${LAW_META.updatedAt}`;
 
@@ -371,6 +373,46 @@ function setImportStatus(type, html) {
   $("importStatus").innerHTML = `<div class="alert ${type}">${html}</div>`;
 }
 
+const IMPORT_PROGRESS_STAGES = [
+  { after: 0, title: "Đang tiếp nhận hồ sơ…", detail: "Đang tải và chuẩn hóa các tệp đã chọn." },
+  { after: 3, title: "Đang trích xuất nội dung…", detail: "Đang đọc chữ, bảng và hình ảnh trong hồ sơ." },
+  { after: 8, title: "Đang nhận diện quá trình đóng…", detail: "Đang xác định từng giai đoạn, mức lương/hệ số và phụ cấp tính đóng." },
+  { after: 15, title: "Đang ghép và lọc dữ liệu…", detail: "Đang đối chiếu các ảnh/tệp, loại phần trùng và kiểm tra xung đột." },
+  { after: 28, title: "Hệ thống vẫn đang xử lý…", detail: "Hồ sơ nhiều trang hoặc ảnh chất lượng thấp có thể cần thêm thời gian. Tiến trình vẫn đang hoạt động." }
+];
+
+function progressStage(elapsedSeconds) {
+  return [...IMPORT_PROGRESS_STAGES].reverse().find(stage => elapsedSeconds >= stage.after) || IMPORT_PROGRESS_STAGES[0];
+}
+
+function updateImportProgress() {
+  const elapsed = Math.max(0, Math.floor((Date.now() - importProgressStartedAt) / 1000));
+  const stage = progressStage(elapsed);
+  $("importProgressTitle").textContent = stage.title;
+  $("importProgressDetail").textContent = stage.detail;
+  $("importElapsed").textContent = `${elapsed} giây`;
+}
+
+function startImportProgress(fileCount) {
+  stopImportProgress();
+  importProgressStartedAt = Date.now();
+  $("importProgress").hidden = false;
+  $("importProgress").setAttribute("aria-busy", "true");
+  $("importProgressDetail").textContent = `Đã nhận ${fileCount} tệp. Đang tải và chuẩn hóa nội dung.`;
+  $("importElapsed").textContent = "0 giây";
+  importProgressTimer = window.setInterval(updateImportProgress, 1000);
+}
+
+function stopImportProgress() {
+  if (importProgressTimer) window.clearInterval(importProgressTimer);
+  importProgressTimer = null;
+  const progress = $("importProgress");
+  if (progress) {
+    progress.hidden = true;
+    progress.setAttribute("aria-busy", "false");
+  }
+}
+
 function regimeLabel(regime) {
   if (regime === "state") return "Lương Nhà nước";
   if (regime === "employer") return "Lương do NSDLĐ quyết định";
@@ -398,24 +440,82 @@ function clearImportReview() {
   $("importReviewWarnings").innerHTML = "";
 }
 
-function renderImportReview(payload) {
-  pendingImport = payload;
-  const reviewRows = Array.isArray(payload.reviewPeriods) && payload.reviewPeriods.length
+function applyImportedData(payload) {
+  const confirmationWarnings = [];
+  let personChanged = false;
+
+  if (payload.person?.sex) {
+    if (!$("sex").value) {
+      $("sex").value = payload.person.sex;
+      personChanged = true;
+    } else if ($("sex").value !== payload.person.sex) {
+      confirmationWarnings.push(`Giới tính trong hồ sơ (${payload.person.sex === "male" ? "Nam" : "Nữ"}) khác với thông tin đang nhập trên màn hình.`);
+    }
+  }
+
+  if (payload.person?.birthDate) {
+    const currentBirth = parseVietnameseDate($("birthDate").value);
+    if (!currentBirth) {
+      $("birthDate").value = displayDate(payload.person.birthDate);
+      personChanged = true;
+    } else if (currentBirth !== payload.person.birthDate) {
+      confirmationWarnings.push(`Ngày sinh trong hồ sơ (${displayDate(payload.person.birthDate)}) khác với ngày sinh đang nhập (${displayDate(currentBirth)}).`);
+    }
+  }
+
+  if (personChanged) updateRetirementDates({ resetSpecial: true });
+
+  const existing = getPeriods({ includeBlank: false });
+  const imported = Array.isArray(payload.periods) ? payload.periods : [];
+  const combined = dedupeImportedPeriods([...existing, ...imported]);
+  confirmationWarnings.push(...(combined.warnings || []));
+
+  if (combined.periods.length) {
+    rowsHost.innerHTML = "";
+    combined.periods.forEach(addPeriodRow);
+  }
+
+  lastForecastHistorySignature = "";
+  updateForecastPreview();
+
+  return {
+    importedCount: imported.length,
+    totalPeriods: combined.periods.length,
+    duplicatesRemoved: Number(combined.duplicatesRemoved || 0),
+    conflicts: Number(combined.conflicts || 0),
+    confirmationWarnings: [...new Set(confirmationWarnings)]
+  };
+}
+
+function renderImportReview(payload, extraWarnings = []) {
+  const allReviewRows = Array.isArray(payload.reviewPeriods) && payload.reviewPeriods.length
     ? payload.reviewPeriods
     : (payload.periods || []).map(fallbackReviewPeriod);
+  const unresolvedRows = allReviewRows.filter(row => !row.validForImport);
+  const warningList = [...new Set([
+    ...(payload.confirmationWarnings || []),
+    ...extraWarnings
+  ].filter(Boolean))];
+
+  if (!unresolvedRows.length && !warningList.length) {
+    clearImportReview();
+    return false;
+  }
+
+  pendingImport = { ...payload, unresolvedRows, confirmationWarnings: warningList };
 
   const person = [];
-  if (payload.person?.birthDate) person.push(`Ngày sinh: <strong>${displayDate(payload.person.birthDate)}</strong>`);
-  if (payload.person?.sex) person.push(`Giới tính: <strong>${payload.person.sex === "male" ? "Nam" : "Nữ"}</strong>`);
-  $("importPersonReview").innerHTML = person.length ? person.join(" · ") : "Không nhận diện thông tin cá nhân";
+  if (payload.person?.birthDate) person.push(`Ngày sinh đọc được: <strong>${displayDate(payload.person.birthDate)}</strong>`);
+  if (payload.person?.sex) person.push(`Giới tính đọc được: <strong>${payload.person.sex === "male" ? "Nam" : "Nữ"}</strong>`);
+  $("importPersonReview").innerHTML = person.length ? person.join(" · ") : "Không có thông tin cá nhân cần đối chiếu";
 
-  $("importReviewRows").innerHTML = reviewRows.map((row, index) => {
+  $("importReviewRows").innerHTML = unresolvedRows.map((row, index) => {
     const recognized = (row.recognizedFields || []).length
       ? `<div class="review-fields">${row.recognizedFields.map(x => `<span class="review-pill ok">${escapeHtml(x)}</span>`).join("")}</div>`
       : `<span class="review-pill">Chưa có</span>`;
     const missing = (row.missingFields || []).length
       ? `<div class="review-fields">${row.missingFields.map(x => `<span class="review-pill missing">${escapeHtml(x)}</span>`).join("")}</div>`
-      : `<span class="review-pill ok">Đủ dữ liệu bắt buộc</span>`;
+      : `<span class="review-pill ok">Không thiếu trường bắt buộc</span>`;
     const period = row.from || row.to ? `${displayMonth(row.from)} → ${displayMonth(row.to)}` : "—";
     return `<tr>
       <td>${index + 1}</td>
@@ -423,17 +523,16 @@ function renderImportReview(payload) {
       <td>${escapeHtml(regimeLabel(row.regime))}</td>
       <td>${recognized}</td>
       <td>${missing}</td>
-      <td><span class="review-status ${row.validForImport ? "ok" : "missing"}">${row.validForImport ? "Sẵn sàng" : "Cần bổ sung"}</span></td>
+      <td><span class="review-status missing">Cần xác nhận</span></td>
     </tr>`;
-  }).join("") || `<tr><td colspan="6">Chưa nhận diện được giai đoạn đóng BHXH nào.</td></tr>`;
+  }).join("") || `<tr><td colspan="6">Không có dòng thiếu trường bắt buộc. Vui lòng kiểm tra các cảnh báo/xung đột bên dưới.</td></tr>`;
 
-  const warningList = [...new Set(payload.warnings || [])];
   $("importReviewWarnings").innerHTML = warningList.length
-    ? `<div class="alert warning"><strong>Cần đối chiếu:</strong><ul>${warningList.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul></div>`
+    ? `<div class="alert warning"><strong>Cần xác nhận:</strong><ul>${warningList.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul></div>`
     : "";
 
-  $("applyImportBtn").disabled = !(payload.periods || []).length;
   $("importReview").hidden = false;
+  return true;
 }
 
 function renderSelectedFiles(files) {
@@ -451,7 +550,7 @@ $("historyFiles").addEventListener("change", event => {
   clearImportReview();
   renderSelectedFiles(files);
   if (files.length) {
-    setImportStatus("warning", `Đã chọn <strong>${files.length} tệp</strong>. Hệ thống sẽ đọc chung, lọc phần trùng và hiển thị bảng kiểm tra trước khi nhập.`);
+    setImportStatus("warning", `Đã chọn <strong>${files.length} tệp</strong>. Khi bấm đọc, dữ liệu rõ ràng sẽ tự động điền vào quá trình đóng; chỉ nội dung chưa rõ mới hiện để xác nhận thêm.`);
   } else {
     $("importStatus").innerHTML = "";
   }
@@ -465,10 +564,13 @@ $("importAiBtn").addEventListener("click", async () => {
   }
 
   const btn = $("importAiBtn");
+  const fileInput = $("historyFiles");
   btn.disabled = true;
+  fileInput.disabled = true;
   btn.textContent = "Đang đọc hồ sơ…";
   clearImportReview();
-  setImportStatus("warning", `Đang đọc ${files.length} tệp, chuẩn hóa các giai đoạn và đối chiếu phần ảnh bị gối/trùng.`);
+  $("importStatus").innerHTML = "";
+  startImportProgress(files.length);
 
   try {
     const body = new FormData();
@@ -477,58 +579,40 @@ $("importAiBtn").addEventListener("click", async () => {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
 
-    renderImportReview(payload);
+    const applied = applyImportedData(payload);
     const recognized = Number(payload.meta?.recognizedRows ?? payload.reviewPeriods?.length ?? payload.periods?.length ?? 0);
     const ready = Number(payload.meta?.importableRows ?? payload.periods?.length ?? 0);
     const missing = Number(payload.meta?.incompleteRows ?? Math.max(0, recognized - ready));
-    const removed = Number(payload.meta?.duplicatesRemoved || 0);
-    setImportStatus(
-      "success",
-      `<strong>Đã đọc ${payload.meta?.sourceCount || files.length} tệp.</strong> Nhận diện ${recognized} dòng; ${ready} dòng đủ dữ liệu để nhập${missing ? `, ${missing} dòng còn thiếu` : ""}${removed ? `; đã loại ${removed} phần trùng hệt nhau` : ""}. Hãy kiểm tra bảng bên dưới rồi xác nhận.`
-    );
+    const removed = Number(payload.meta?.duplicatesRemoved || 0) + applied.duplicatesRemoved;
+    const extraWarnings = applied.confirmationWarnings;
+    const needsReview = renderImportReview(payload, extraWarnings);
+
+    if (needsReview) {
+      setImportStatus(
+        "warning",
+        `<strong>Đã đọc ${payload.meta?.sourceCount || files.length} tệp và tự động điền ${applied.importedCount} giai đoạn rõ ràng.</strong> ${missing ? `Có ${missing} dòng còn thiếu dữ liệu. ` : ""}${removed ? `Đã loại ${removed} phần tháng trùng lặp. ` : ""}Còn một số thông tin cần xác nhận thêm ở khung bên dưới.`
+      );
+    } else {
+      setImportStatus(
+        "success",
+        `<strong>Đã đọc ${payload.meta?.sourceCount || files.length} tệp và tự động điền ${applied.importedCount} giai đoạn vào quá trình đóng.</strong>${removed ? ` Đã loại ${removed} phần tháng trùng lặp.` : ""} Không có thông tin chưa rõ cần xác nhận thêm.`
+      );
+    }
   } catch (error) {
     const extra = location.protocol === "file:" || ["github.io"].some(x => location.hostname.endsWith(x))
       ? " Chức năng đọc hồ sơ cần chạy bằng backend Node/Vercel để giữ bí mật API key."
       : "";
     setImportStatus("error", `<strong>Không đọc được hồ sơ:</strong> ${escapeHtml(error.message)}.${extra}`);
   } finally {
+    stopImportProgress();
     btn.disabled = false;
+    fileInput.disabled = false;
     btn.textContent = "Đọc dữ liệu từ file";
   }
 });
 
-$("applyImportBtn").addEventListener("click", () => {
-  if (!pendingImport) return;
-
-  if (pendingImport.person?.sex && !$("sex").value) $("sex").value = pendingImport.person.sex;
-  if (pendingImport.person?.birthDate && !$("birthDate").value) $("birthDate").value = displayDate(pendingImport.person.birthDate);
-  updateRetirementDates({ resetSpecial: true });
-
-  const existing = getPeriods({ includeBlank: false });
-  const combined = dedupeImportedPeriods([...existing, ...(pendingImport.periods || [])]);
-  if (combined.periods.length) {
-    rowsHost.innerHTML = "";
-    combined.periods.forEach(addPeriodRow);
-  }
-
-  const allWarnings = [...new Set([...(pendingImport.warnings || []), ...(combined.warnings || [])])];
-  const removed = Number(pendingImport.meta?.duplicatesRemoved || 0) + Number(combined.duplicatesRemoved || 0);
-  const warningHtml = allWarnings.length
-    ? `<ul>${allWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`
-    : "";
-  const importedCount = (pendingImport.periods || []).length;
-  setImportStatus(
-    "success",
-    `<strong>Đã xác nhận ${importedCount} giai đoạn hợp lệ từ file.</strong> Bảng quá trình đóng hiện có ${combined.periods.length} giai đoạn sau khi gộp${removed ? `; đã loại ${removed} phần tháng trùng lặp` : ""}. Hãy đối chiếu lần cuối trước khi tính.${warningHtml}`
-  );
+$("closeImportReviewBtn").addEventListener("click", () => {
   clearImportReview();
-  lastForecastHistorySignature = "";
-  updateForecastPreview();
-});
-
-$("cancelImportBtn").addEventListener("click", () => {
-  clearImportReview();
-  setImportStatus("warning", "Đã bỏ kết quả đọc file; dữ liệu quá trình đóng hiện tại không thay đổi.");
 });
 
 function renderResult(avg, result, input) {

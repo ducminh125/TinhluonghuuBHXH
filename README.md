@@ -1,4 +1,4 @@
-# VN Pension Calculator v2.3
+# VN Pension Calculator v2.4
 
 Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024. Dữ liệu hồ sơ có thể được nhập trực tiếp hoặc trích xuất từ ảnh/PDF/Word/Excel; phép tính lương hưu được thực hiện bởi engine quy tắc trong source code.
 
@@ -12,7 +12,7 @@ Web ước tính lương hưu Việt Nam theo Luật Bảo hiểm xã hội 2024
 - Tính mức bình quân từ lịch sử đóng thay vì yêu cầu người dùng tự nhập mức bình quân.
 - Cho phép nhập các khoản **phụ cấp/khoản bổ sung thuộc căn cứ đóng BHXH** trước khi tính bình quân.
 - Import đồng thời nhiều **JPG / PNG / WEBP / PDF / Word / Excel / CSV / TXT**.
-- Sau khi đọc file, hiển thị bảng **“Dữ liệu nhận diện được / Dữ liệu còn thiếu”**; dữ liệu chỉ được đưa vào quá trình đóng khi người dùng xác nhận.
+- Sau khi đọc file, các giai đoạn đủ dữ liệu được **tự động điền ngay vào quá trình đóng**. Bảng **“Dữ liệu nhận diện được / Dữ liệu còn thiếu”** chỉ xuất hiện khi còn thông tin chưa rõ, trường bắt buộc bị thiếu hoặc có xung đột cần người dùng xác nhận.
 - Tự lọc phần thời gian bị trùng do nhiều ảnh chụp có vùng gối nhau.
 - Nếu cùng một tháng xuất hiện hai giá trị khác nhau, hệ thống **không tự chọn số mới** mà giữ bản đọc trước và cảnh báo tháng cần đối chiếu.
 - Tùy chọn **tự bổ sung quá trình đóng đến tháng nghỉ hưu**:
@@ -105,14 +105,16 @@ Nên có thêm, nếu tài liệu thể hiện:
 
 Nếu hồ sơ đã ghi **tổng tiền lương làm căn cứ đóng BHXH**, hệ thống dùng tổng đó và không cộng phụ cấp lần nữa. Nếu hồ sơ tách lương chính và phụ cấp, hai phần được lưu riêng rồi cộng trước khi tính bình quân.
 
-Sau bước trích xuất, hệ thống **chưa ghi ngay vào quá trình đóng** mà tạo bảng kiểm tra gồm:
+Sau bước trích xuất, hệ thống xử lý theo cơ chế **tự động điền trước – chỉ hỏi khi chưa rõ**:
 
-- giai đoạn và chế độ đã nhận diện;
-- các trường đã nhận diện được;
-- các trường bắt buộc còn thiếu;
-- trạng thái “Sẵn sàng” hoặc “Cần bổ sung”.
+- các dòng đủ **từ tháng, đến tháng, chế độ và mức đóng/hệ số** được tự động đưa vào quá trình đóng ngay sau khi đọc xong;
+- dữ liệu được ghép với phần người dùng đã nhập và chạy qua `dedupeImportedPeriods()` để loại phần tháng trùng;
+- bảng **“Dữ liệu nhận diện được / Dữ liệu còn thiếu”** chỉ xuất hiện khi có dòng thiếu trường bắt buộc, dữ liệu giữa các ảnh/tệp xung đột, hoặc thông tin cá nhân đọc được khác với dữ liệu đang nhập;
+- các dòng chưa đủ dữ liệu không được tự động chèn vào phép tính cho đến khi người dùng bổ sung/đối chiếu.
 
-Chỉ dòng đủ **từ tháng, đến tháng, chế độ và mức đóng/hệ số** mới được đưa vào danh sách chờ nhập. Người dùng bấm **“Đưa dữ liệu hợp lệ vào quá trình đóng”** để xác nhận. Sau đó dữ liệu mới đi qua `dedupeImportedPeriods()`:
+Trong lúc đọc, giao diện hiển thị trạng thái xử lý theo từng bước và số giây đã chạy để tránh hiểu nhầm ứng dụng bị treo. Thanh tiến trình là dạng **đang hoạt động** chứ không giả lập phần trăm hoàn thành.
+
+Sau đó dữ liệu hợp lệ được xử lý như sau:
 
 1. Mỗi giai đoạn được mở rộng theo từng tháng.
 2. Cùng tháng + cùng chế độ + cùng lương/phụ cấp → coi là trùng và chỉ giữ một bản.

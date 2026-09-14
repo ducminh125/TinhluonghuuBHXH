@@ -186,16 +186,32 @@
               </div>
               <div class="upload-actions">
                 <button class="button dark" type="button" id="importAiBtn">Đọc dữ liệu từ file</button>
-                <p>Hệ thống đọc chung các tệp, ghép quá trình đóng, tự loại tháng trùng hệt nhau do ảnh chụp gối trang. Kết quả sẽ được hiển thị để kiểm tra trước khi đưa vào quá trình đóng.</p>
+                <p>Hệ thống đọc chung các tệp, ghép quá trình đóng và tự loại tháng trùng hệt nhau do ảnh chụp gối trang. Dữ liệu rõ ràng sẽ tự động điền vào bảng; chỉ nội dung chưa rõ mới yêu cầu xác nhận thêm.</p>
               </div>
             </div>
+
+            <div id="importProgress" class="import-progress" hidden aria-live="polite" aria-busy="true">
+              <div class="import-progress-head">
+                <div class="import-progress-title-wrap">
+                  <span class="import-spinner" aria-hidden="true"></span>
+                  <div>
+                    <strong id="importProgressTitle">Đang đọc hồ sơ…</strong>
+                    <span id="importProgressDetail">Đang tiếp nhận và chuẩn hóa nội dung tệp.</span>
+                  </div>
+                </div>
+                <span id="importElapsed" class="import-elapsed">0 giây</span>
+              </div>
+              <div class="import-progress-bar" aria-hidden="true"><span></span></div>
+              <p>Quá trình vẫn đang hoạt động. Hồ sơ nhiều ảnh/trang có thể cần thêm thời gian để nhận diện, ghép các giai đoạn và kiểm tra phần trùng.</p>
+            </div>
+
             <div id="importStatus" aria-live="polite"></div>
 
             <div id="importReview" class="import-review" hidden>
               <div class="import-review-heading">
                 <div>
-                  <strong>Kiểm tra dữ liệu trước khi đưa vào quá trình đóng</strong>
-                  <span>Đối chiếu “Dữ liệu nhận diện được / Dữ liệu còn thiếu”. Chỉ các dòng đủ dữ liệu bắt buộc mới được đưa vào bảng quá trình đóng.</span>
+                  <strong>Thông tin chưa rõ cần xác nhận thêm</strong>
+                  <span>Phần dữ liệu rõ ràng đã được tự động điền vào quá trình đóng. Khung này chỉ xuất hiện khi còn trường thiếu, xung đột hoặc nội dung cần người dùng kiểm tra.</span>
                 </div>
                 <div id="importPersonReview" class="person-review"></div>
               </div>
@@ -216,8 +232,7 @@
               </div>
               <div id="importReviewWarnings"></div>
               <div class="import-review-actions">
-                <button class="button primary" type="button" id="applyImportBtn">Đưa dữ liệu hợp lệ vào quá trình đóng</button>
-                <button class="button secondary" type="button" id="cancelImportBtn">Bỏ kết quả đọc</button>
+                <button class="button secondary" type="button" id="closeImportReviewBtn">Đã kiểm tra · Đóng thông báo</button>
               </div>
             </div>
           </div>

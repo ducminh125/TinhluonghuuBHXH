@@ -48,7 +48,7 @@ Quy tắc trích xuất:
 9. Với lương doanh nghiệp: nếu tài liệu tách lương công việc/chức danh và phụ cấp/khoản bổ sung ổn định thuộc căn cứ đóng, amountVnd là lương chính và allowanceVnd là tổng các khoản tính đóng. Nếu tài liệu đã ghi tổng mức đóng thì amountVnd là tổng và allowanceVnd=0.
 10. Không lấy tiền lương thực nhận nếu không phải căn cứ đóng BHXH.
 11. Gộp các tháng liên tiếp chỉ khi toàn bộ chế độ, kiểu nhập, lương và phụ cấp giống nhau.
-12. Ghi các điểm không chắc chắn trong warnings để người dùng kiểm tra.`;
+12. Ghi các điểm không chắc chắn trong warnings để người dùng kiểm tra. Chỉ tạo warning khi sự không chắc chắn có thể làm thay đổi giai đoạn đóng, chế độ, mức lương/hệ số, phụ cấp hoặc gây xung đột dữ liệu. Không tạo warning chỉ vì hồ sơ không có thông tin tùy chọn như ngày sinh, giới tính, ngạch/bậc/chức danh nếu các giai đoạn đóng vẫn đủ dữ liệu bắt buộc.`;
 
 function stripJsonFence(text) {
   return String(text || "")
@@ -176,19 +176,22 @@ export async function extractBhxhWithAI({ text, images = [], filename = "hồ s�
     throw new Error("AI trả về dữ liệu không phải JSON hợp lệ. Hãy thử lại hoặc kiểm tra tệp nguồn.");
   }
 
-  const warnings = [
-    ...parserWarnings,
-    ...(Array.isArray(data.warnings) ? data.warnings.map(String) : [])
-  ];
-  const rawPeriods = (Array.isArray(data.periods) ? data.periods : []).map((row, index) => normalizePeriod(row, warnings, index));
+  const informationalWarnings = [...parserWarnings.map(String)];
+  const confirmationWarnings = Array.isArray(data.warnings) ? data.warnings.map(String) : [];
+  const normalizationWarnings = [];
+  const rawPeriods = (Array.isArray(data.periods) ? data.periods : []).map((row, index) => normalizePeriod(row, normalizationWarnings, index));
   const reviewPeriods = rawPeriods.map((row, index) => buildPeriodReview(row, index));
   const importable = reviewPeriods.filter(row => row.validForImport).map(({ recognizedFields, missingFields, validForImport, index, ...row }) => row);
   const deduped = dedupeImportedPeriods(importable);
-  warnings.push(...deduped.warnings);
+  confirmationWarnings.push(...normalizationWarnings, ...deduped.warnings);
 
   const incompleteCount = reviewPeriods.filter(row => !row.validForImport).length;
-  if (incompleteCount) warnings.push(`Có ${incompleteCount} dòng chưa đủ dữ liệu bắt buộc; các dòng này sẽ không được đưa vào quá trình đóng cho đến khi người dùng bổ sung.`);
-  if (!reviewPeriods.length) warnings.push("Chưa nhận diện được giai đoạn đóng BHXH nào; cần nhập thủ công hoặc dùng tài liệu rõ hơn.");
+  if (incompleteCount) confirmationWarnings.push(`Có ${incompleteCount} dòng chưa đủ dữ liệu bắt buộc; các dòng này chưa được tự động điền và cần người dùng bổ sung/xác nhận.`);
+  if (!reviewPeriods.length) confirmationWarnings.push("Chưa nhận diện được giai đoạn đóng BHXH nào; cần nhập thủ công hoặc dùng tài liệu rõ hơn.");
+
+  const uniqueInfoWarnings = [...new Set(informationalWarnings)];
+  const uniqueConfirmationWarnings = [...new Set(confirmationWarnings)];
+  const warnings = [...new Set([...uniqueInfoWarnings, ...uniqueConfirmationWarnings])];
 
   return {
     person: {
@@ -197,7 +200,9 @@ export async function extractBhxhWithAI({ text, images = [], filename = "hồ s�
     },
     reviewPeriods,
     periods: deduped.periods,
-    warnings: [...new Set(warnings)],
+    warnings,
+    informationalWarnings: uniqueInfoWarnings,
+    confirmationWarnings: uniqueConfirmationWarnings,
     meta: {
       model,
       source: "AI",
@@ -206,7 +211,8 @@ export async function extractBhxhWithAI({ text, images = [], filename = "hồ s�
       incompleteRows: incompleteCount,
       importableRows: deduped.periods.length,
       duplicatesRemoved: deduped.duplicatesRemoved,
-      conflicts: deduped.conflicts
+      conflicts: deduped.conflicts,
+      needsConfirmation: incompleteCount > 0 || deduped.conflicts > 0 || uniqueConfirmationWarnings.length > 0
     }
   };
 }

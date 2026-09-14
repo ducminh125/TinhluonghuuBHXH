@@ -188,7 +188,7 @@ input[readonly] { background: #f2f4f6; color: #48515a; font-weight: 700; }
 .data-requirements p { margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed var(--line); line-height: 1.5; }
 @media (max-width: 760px) { .requirements-grid { grid-template-columns: 1fr; gap: 0; } }
 
-/* v2.3: bước kiểm tra dữ liệu sau khi đọc hồ sơ */
+/* v2.4: chỉ hiển thị bảng đối chiếu khi dữ liệu import còn chưa rõ */
 .import-review { margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: #fff; }
 .import-review-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .import-review-heading > div:first-child { display: flex; flex-direction: column; gap: 4px; }
@@ -217,4 +217,26 @@ input[readonly] { background: #f2f4f6; color: #48515a; font-weight: 700; }
 @media (max-width: 760px) {
   .import-review-heading { flex-direction: column; }
   .person-review { width: 100%; }
+}
+
+/* v2.4: trạng thái đọc hồ sơ rõ ràng, tránh cảm giác bị treo */
+.import-progress { margin-top: 14px; padding: 14px 16px; border: 1px solid #d7e1e8; border-radius: 12px; background: #f8fbfd; }
+.import-progress-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.import-progress-title-wrap { display: flex; gap: 11px; align-items: flex-start; min-width: 0; }
+.import-progress-title-wrap > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.import-progress-title-wrap strong { color: #1f2933; font-size: .9rem; }
+.import-progress-title-wrap span:not(.import-spinner) { color: var(--muted); font-size: .8rem; line-height: 1.4; }
+.import-spinner { flex: 0 0 18px; width: 18px; height: 18px; margin-top: 2px; border: 2px solid #c9d5de; border-top-color: #384b5a; border-radius: 50%; animation: import-spin .8s linear infinite; }
+.import-elapsed { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: #eef3f6; color: #56636f; font-size: .72rem; font-variant-numeric: tabular-nums; }
+.import-progress-bar { position: relative; overflow: hidden; height: 6px; margin: 12px 0 9px; border-radius: 999px; background: #e6edf2; }
+.import-progress-bar span { position: absolute; inset: 0 auto 0 -36%; width: 36%; border-radius: inherit; background: #647887; animation: import-progress 1.5s ease-in-out infinite; }
+.import-progress p { margin: 0; color: #5b6670; font-size: .76rem; line-height: 1.45; }
+@keyframes import-spin { to { transform: rotate(360deg); } }
+@keyframes import-progress { 0% { left: -36%; } 55% { left: 64%; } 100% { left: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .import-spinner, .import-progress-bar span { animation-duration: 3s; }
+}
+@media (max-width: 640px) {
+  .import-progress-head { flex-direction: column; gap: 8px; }
+  .import-elapsed { align-self: flex-start; }
 }
