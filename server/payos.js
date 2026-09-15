@@ -9,6 +9,22 @@ const REQUEST_TIMEOUT_MS = Math.max(3000, Math.min(30000, Number(process.env.PAY
 
 export const payosConfigured = Boolean(CLIENT_ID && API_KEY && CHECKSUM_KEY);
 
+
+export function buildVietQrImageUrl({ bin, accountNumber, amount, description, accountName, template = 'compact' } = {}) {
+  const bankId = String(bin || '').trim();
+  const account = String(accountNumber || '').trim();
+  const value = Math.trunc(Number(amount || 0));
+  if (!bankId || !account || !Number.isInteger(value) || value <= 0) return '';
+  const safeTemplate = ['compact','compact2','qr_only','print'].includes(String(template)) ? String(template) : 'compact';
+  const base = `https://img.vietqr.io/image/${encodeURIComponent(bankId)}-${encodeURIComponent(account)}-${safeTemplate}.png`;
+  const params = new URLSearchParams({ amount: String(value) });
+  const addInfo = String(description || '').trim();
+  const name = String(accountName || '').trim();
+  if (addInfo) params.set('addInfo', addInfo);
+  if (name) params.set('accountName', name);
+  return `${base}?${params.toString()}`;
+}
+
 function hmac(value) {
   return crypto.createHmac('sha256', CHECKSUM_KEY).update(value).digest('hex');
 }

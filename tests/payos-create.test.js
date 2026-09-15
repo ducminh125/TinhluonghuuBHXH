@@ -42,3 +42,16 @@ test('createPayosPayment exposes payOS authentication error instead of generic 5
     );
   }finally{globalThis.fetch=originalFetch;}
 });
+
+test('buildVietQrImageUrl creates an embeddable VietQR image from payOS payment data',()=>{
+  const url=payos.buildVietQrImageUrl({
+    bin:'970418',accountNumber:'V3CAS8885141200',amount:1000,
+    description:'CSO1Z9RJNA4 LH1652774',accountName:'MAI DUC MINH',template:'qr_only'
+  });
+  const parsed=new URL(url);
+  assert.equal(parsed.hostname,'img.vietqr.io');
+  assert.equal(parsed.pathname,'/image/970418-V3CAS8885141200-qr_only.png');
+  assert.equal(parsed.searchParams.get('amount'),'1000');
+  assert.equal(parsed.searchParams.get('addInfo'),'CSO1Z9RJNA4 LH1652774');
+  assert.equal(parsed.searchParams.get('accountName'),'MAI DUC MINH');
+});

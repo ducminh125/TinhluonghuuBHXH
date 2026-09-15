@@ -22,7 +22,7 @@ import {
   normalizeDatabaseError,
   databaseStatus
 } from './supabase.js';
-import { payosConfigured, createPayosPayment, getPayosPayment, verifyPayosWebhook, confirmPayosWebhook, buildPaymentDescription, getPayosDiagnostics } from './payos.js';
+import { payosConfigured, createPayosPayment, getPayosPayment, verifyPayosWebhook, confirmPayosWebhook, buildPaymentDescription, buildVietQrImageUrl, getPayosDiagnostics } from './payos.js';
 
 const __filename=fileURLToPath(import.meta.url);
 const __dirname=path.dirname(__filename);
@@ -260,7 +260,9 @@ app.post('/api/orders',requireUser,async(req,res)=>{
         provider:'payos',orderCode:Number(payment.orderCode||orderCode),paymentCode:description,
         amount:Number(payment.amount||plan.price_vnd),accountNumber:payment.accountNumber||'',accountName:payment.accountName||'',
         bankName:process.env.PAYMENT_BANK_NAME||'',bin:payment.bin||'',description:payment.description||description,
-        checkoutUrl:payment.checkoutUrl||'',qrCode:payment.qrCode||'',paymentLinkId:payment.paymentLinkId||'',expiresAt:expiredAt
+        checkoutUrl:payment.checkoutUrl||'',qrCode:payment.qrCode||'',
+        qrImageUrl:buildVietQrImageUrl({bin:payment.bin,accountNumber:payment.accountNumber,amount:payment.amount||plan.price_vnd,description:payment.description||description,accountName:payment.accountName,template:'qr_only'}),
+        paymentLinkId:payment.paymentLinkId||'',expiresAt:expiredAt
       }
     });
   }catch(e){

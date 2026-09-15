@@ -130,24 +130,83 @@ function setPaymentStatus(status,label){
   const el=$('paymentStatus');if(!el)return;el.className=`payment-status ${status}`;el.textContent=label;
 }
 function closePayment(){stopPaymentPolling();hide($('paymentModal'));}
-async function drawPaymentQr(text){
-  const canvas=$('paymentQrCanvas');if(!canvas||!text)return;
-  try{
-    if(window.QRCode?.toCanvas)await window.QRCode.toCanvas(canvas,text,{width:280,margin:1,errorCorrectionLevel:'M'});
-  }catch(e){console.warn('Không vẽ được QR',e);}
+
+const BANK_META={
+  '970418':{short:'BIDV',name:'Ngân hàng TMCP Đầu tư và Phát triển Việt Nam'},
+  '970436':{short:'Vietcombank',name:'Ngân hàng TMCP Ngoại thương Việt Nam'},
+  '970415':{short:'VietinBank',name:'Ngân hàng TMCP Công Thương Việt Nam'},
+  '970405':{short:'Agribank',name:'Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam'},
+  '970422':{short:'MB',name:'Ngân hàng TMCP Quân đội'},
+  '970407':{short:'Techcombank',name:'Ngân hàng TMCP Kỹ thương Việt Nam'},
+  '970416':{short:'ACB',name:'Ngân hàng TMCP Á Châu'},
+  '970432':{short:'VPBank',name:'Ngân hàng TMCP Việt Nam Thịnh Vượng'},
+  '970403':{short:'Sacombank',name:'Ngân hàng TMCP Sài Gòn Thương Tín'},
+  '970423':{short:'TPBank',name:'Ngân hàng TMCP Tiên Phong'},
+  '970441':{short:'VIB',name:'Ngân hàng TMCP Quốc tế Việt Nam'},
+  '970443':{short:'SHB',name:'Ngân hàng TMCP Sài Gòn - Hà Nội'},
+  '970426':{short:'MSB',name:'Ngân hàng TMCP Hàng Hải Việt Nam'},
+  '970437':{short:'HDBank',name:'Ngân hàng TMCP Phát triển TP.HCM'}
+};
+
+function bankMeta(payment={}){
+  const byBin=BANK_META[String(payment.bin||'').trim()]||null;
+  const fallback=String(payment.bankName||'').trim();
+  return {
+    short:byBin?.short||fallback||'Ngân hàng',
+    name:byBin?.name||fallback||'Tài khoản nhận thanh toán'
+  };
 }
+
+function buildVietQrUrl(payment={}){
+  if(payment.qrImageUrl)return String(payment.qrImageUrl);
+  const bin=String(payment.bin||'').trim(),account=String(payment.accountNumber||'').trim();
+  const amount=Math.trunc(Number(payment.amount||0));
+  if(!bin||!account||!Number.isInteger(amount)||amount<=0)return '';
+  const params=new URLSearchParams({amount:String(amount)});
+  const description=String(payment.description||payment.paymentCode||'').trim();
+  const name=String(payment.accountName||'').trim();
+  if(description)params.set('addInfo',description);
+  if(name)params.set('accountName',name);
+  return `https://img.vietqr.io/image/${encodeURIComponent(bin)}-${encodeURIComponent(account)}-qr_only.png?${params.toString()}`;
+}
+
+function showPaymentQr(payment){
+  const img=$('paymentQrImage'),fallback=$('paymentQrFallback');
+  if(!img||!fallback)return;
+  const url=buildVietQrUrl(payment);
+  img.hidden=true;fallback.hidden=false;
+  fallback.innerHTML='<strong>Đang tải mã VietQR…</strong><span>Mã QR sẽ tự hiển thị, không cần mở trang payOS.</span>';
+  img.onload=()=>{img.hidden=false;fallback.hidden=true;};
+  img.onerror=()=>{img.hidden=true;fallback.hidden=false;fallback.innerHTML='<strong>Chưa tải được mã QR</strong><span>Bạn vẫn có thể chuyển khoản bằng thông tin bên cạnh hoặc mở trang payOS dự phòng.</span>';};
+  if(!url){img.removeAttribute('src');img.onerror();return;}
+  img.src=url;
+}
+
+async function copyText(value){
+  const text=String(value??'').trim();if(!text)return false;
+  try{await navigator.clipboard.writeText(text);return true;}catch{}
+  try{
+    const ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok;
+  }catch{return false;}
+}
+
 async function renderPayment(order,payment){
   hide($('plansModal'));show($('paymentModal'));currentPaymentOrderId=order.id;
+  const amount=Number(payment.amount||order.amount_vnd||0);
+  const meta=bankMeta(payment);
   $('paymentPlanName').textContent=order.plan_name||'';
-  $('paymentAmount').textContent=money.format(payment.amount||order.amount_vnd||0);
-  $('paymentBank').textContent=payment.bankName||'Tài khoản nhận thanh toán';
+  $('paymentAmount').textContent=money.format(amount);
+  $('paymentAmount').dataset.copy=String(Math.trunc(amount));
+  $('paymentBank').textContent=meta.name;
+  $('paymentBankShort').textContent=meta.short;
+  $('paymentBankBadge').textContent=meta.short.slice(0,4).toUpperCase();
   $('paymentAccount').textContent=payment.accountNumber||'—';
   $('paymentAccountName').textContent=payment.accountName||'—';
   $('paymentCode').textContent=payment.description||payment.paymentCode||'—';
   $('paymentOrderCode').textContent=String(payment.orderCode||order.payment_code||'—');
   const link=$('paymentCheckoutLink');if(link){link.href=payment.checkoutUrl||'#';link.hidden=!payment.checkoutUrl;}
   setPaymentStatus('pending','Chờ thanh toán');setMessage('paymentMessage','','');
-  await drawPaymentQr(payment.qrCode||'');
+  showPaymentQr(payment);
   startPaymentPolling(order.id);
 }
 async function checkPaymentStatus(orderId){
@@ -233,7 +292,10 @@ async function init(){
     await refreshMe();
   }else renderAccount();
   $('loginBtn')?.addEventListener('click',openAuth);$('accountBtn')?.addEventListener('click',openAccount);$('logoutBtn')?.addEventListener('click',signOut);
-  $('authClose')?.addEventListener('click',closeAuth);$('accountClose')?.addEventListener('click',closeAccount);$('plansClose')?.addEventListener('click',()=>hide($('plansModal')));$('paymentClose')?.addEventListener('click',closePayment);$('copyPaymentCode')?.addEventListener('click',async()=>{const text=$('paymentCode')?.textContent||'';try{await navigator.clipboard.writeText(text);setMessage('paymentMessage','success','Đã sao chép nội dung chuyển khoản.');}catch{}});
+  $('authClose')?.addEventListener('click',closeAuth);$('accountClose')?.addEventListener('click',closeAccount);$('plansClose')?.addEventListener('click',()=>hide($('plansModal')));$('paymentClose')?.addEventListener('click',closePayment);$('paymentCloseBottom')?.addEventListener('click',closePayment);
+  $('copyPaymentAccount')?.addEventListener('click',async()=>{if(await copyText($('paymentAccount')?.textContent||''))setMessage('paymentMessage','success','Đã sao chép số tài khoản.');});
+  $('copyPaymentAmount')?.addEventListener('click',async()=>{if(await copyText($('paymentAmount')?.dataset.copy||''))setMessage('paymentMessage','success','Đã sao chép số tiền.');});
+  $('copyPaymentCode')?.addEventListener('click',async()=>{if(await copyText($('paymentCode')?.textContent||''))setMessage('paymentMessage','success','Đã sao chép nội dung chuyển khoản.');});
   $('emailLoginBtn')?.addEventListener('click',signInEmail);$('emailSignupBtn')?.addEventListener('click',signUpEmail);$('googleLoginBtn')?.addEventListener('click',signInGoogle);
   $('buyCreditsBtn')?.addEventListener('click',openPlans);$('accountBuyBtn')?.addEventListener('click',openPlans);
   await handlePaymentReturn();

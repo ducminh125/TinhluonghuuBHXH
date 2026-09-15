@@ -1,8 +1,8 @@
-# VN Pension Calculator v3.4.1 — QR payOS và tự động xác nhận thanh toán
+# VN Pension Calculator v3.5 — VietQR hiển thị trực tiếp + tự động xác nhận thanh toán
 
-Bản v3.4.1 gồm luồng thương mại hoàn chỉnh: **chọn gói → tạo QR VietQR động → thanh toán → webhook xác minh → tự cộng lượt**. QR do payOS tạo theo từng đơn, chứa sẵn số tiền, tài khoản nhận và nội dung chuyển khoản.
+Bản v3.5 gồm luồng thương mại hoàn chỉnh: **chọn gói → tạo QR VietQR động → thanh toán → webhook xác minh → tự cộng lượt**. QR do payOS tạo theo từng đơn, chứa sẵn số tiền, tài khoản nhận và nội dung chuyển khoản.
 
-## Thanh toán v3.4
+## Thanh toán v3.5
 
 ### Biến môi trường
 
@@ -72,6 +72,11 @@ File `supabase/migration-v3.2.sql` là **tùy chọn tăng cứng**: thêm cơ c
 - Supabase phải có schema v3.1.2 (các bảng `profiles`, `wallets`, `plans`, `orders`, `usage_events`, `calculation_history`, `import_jobs`, `admin_audit_logs`).
 - Vercel cần `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SHOPAIKEY_API_KEY`, `ADMIN_EMAILS`.
 - Authentication dùng Email/Google; Phone đã bỏ.
+
+
+## v3.5 - VietQR hiển thị trực tiếp
+
+Khi khách chọn gói, website hiển thị ngay mã VietQR trong modal cùng số tài khoản, số tiền và nội dung chuyển khoản. Ảnh QR được dựng từ dữ liệu payment request do payOS trả về; checkout payOS chỉ còn là link dự phòng. Không cần migration database mới khi nâng từ v3.4.1.
 
 
 ## 1. Điểm mới của v3
