@@ -513,3 +513,27 @@ input[readonly]{background:#f3f7f7;color:#466069}
   .modal-backdrop{padding:7px}.modal-card{padding:21px 16px;border-radius:17px}.wide-modal{width:100%}.plan-grid{grid-template-columns:1fr}.wallet-summary{gap:8px}.account-columns{gap:12px}
   .payment-card{padding:20px 14px}.payment-transfer-grid{gap:18px}.payment-qr-frame{width:min(290px,100%)}
 }
+
+/* v3.10 · Admin table filters */
+.admin-filter-panel{margin:0 0 16px;padding:14px;border:1px solid #dbe8e8;border-radius:14px;background:#f8fbfb}
+.admin-filter-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.admin-filter-head strong{display:block;color:#173b43;font-size:.9rem}
+.admin-filter-head span{display:block;margin-top:3px;color:var(--muted);font-size:.76rem;line-height:1.45}
+.admin-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.admin-filter-grid .field{gap:5px}
+.admin-filter-grid .field>span{font-size:.72rem;font-weight:700;color:#536a70}
+.admin-filter-grid input,.admin-filter-grid select{min-height:39px;padding:8px 10px;border-radius:10px;background:#fff}
+.admin-filter-span-2{grid-column:span 2}
+.admin-filter-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #e3eded}
+@media(max-width:1050px){.admin-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.admin-filter-panel{padding:12px}.admin-filter-grid{grid-template-columns:1fr}.admin-filter-span-2{grid-column:auto}.admin-filter-actions{justify-content:stretch}.admin-filter-actions .button{flex:1 1 120px}}
+
+/* v3.11 - eligibility gates */
+.eligibility-section,.eligibility-guide{margin:18px 0;padding:18px;border:1px solid #d9e7e8;border-radius:16px;background:#f8fbfb}
+.section-subheading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.section-subheading h3{margin:0;font-size:1rem;color:#173c43}.section-subheading p{margin:0;max-width:600px;font-size:.82rem;color:#60757a}
+.eligibility-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}.eligibility-checks.grid-two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.check-field.eligibility-check{padding:13px 14px;border:1px solid #dce7e9;background:#fff;align-items:flex-start}
+.check-field.eligibility-check span{display:flex;flex-direction:column;gap:3px}.check-field.eligibility-check strong{font-size:.86rem;color:#173c43}.check-field.eligibility-check small{font-size:.76rem;line-height:1.45;color:#6a7a7e}
+.eligibility-guide-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.eligibility-guide-list>div{padding:13px 14px;border:1px solid #dce7e9;border-radius:12px;background:#fff;display:flex;flex-direction:column;gap:5px}.eligibility-guide-list strong{font-size:.86rem;color:#173c43}.eligibility-guide-list span{font-size:.78rem;line-height:1.5;color:#60757a}
+@media(max-width:760px){.eligibility-checks,.eligibility-checks.grid-two,.eligibility-guide-list{grid-template-columns:1fr}.section-subheading{display:block}.section-subheading p{margin-top:5px}}

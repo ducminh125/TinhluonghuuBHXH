@@ -6,6 +6,8 @@ let config=null,client=null,session=null,systemStatus=null;
 let userPage=1,userTotalPages=1,userQuery='';
 let orderPage=1,orderTotalPages=1;
 let importPage=1,importTotalPages=1;
+let orderFilters={};
+let importFilters={};
 
 function msg(id,type,text){const el=$(id);if(el)el.innerHTML=text?`<div class="alert ${type}">${esc(text)}</div>`:'';}
 async function api(url,options={}){
@@ -16,6 +18,30 @@ async function api(url,options={}){
 }
 const viDate=v=>v?new Date(v).toLocaleString('vi-VN'):'—';
 const secs=ms=>Number(ms)>0?(Number(ms)/1000).toLocaleString('vi-VN',{maximumFractionDigits:1})+' giây':'—';
+
+function cleanValue(id){const el=$(id);return el?String(el.value??'').trim():'';}
+function buildListParams(page,filters={}){
+  const params=new URLSearchParams({page:String(page),perPage:String(PAGE_SIZE)});
+  for(const [key,value] of Object.entries(filters)){
+    if(value===undefined||value===null||String(value).trim()==='')continue;
+    params.set(key,String(value).trim());
+  }
+  return params;
+}
+function hasFilters(filters={}){return Object.values(filters).some(value=>value!==undefined&&value!==null&&String(value).trim()!=='');}
+function collectOrderFilters(){
+  return {
+    q:cleanValue('orderSearchInput'),code:cleanValue('orderCodeFilter'),user:cleanValue('orderUserFilter'),plan:cleanValue('orderPlanFilter'),
+    amountMin:cleanValue('orderAmountMinFilter'),amountMax:cleanValue('orderAmountMaxFilter'),dateFrom:cleanValue('orderDateFromFilter'),dateTo:cleanValue('orderDateToFilter'),status:cleanValue('orderStatusFilter')
+  };
+}
+function collectImportFilters(){
+  return {
+    q:cleanValue('importSearchInput'),user:cleanValue('importUserFilter'),parser:cleanValue('importParserFilter'),model:cleanValue('importModelFilter'),
+    latencyMinSeconds:cleanValue('importLatencyMinFilter'),latencyMaxSeconds:cleanValue('importLatencyMaxFilter'),dateFrom:cleanValue('importDateFromFilter'),dateTo:cleanValue('importDateToFilter'),status:cleanValue('importStatusFilter')
+  };
+}
+function clearInputs(ids=[]){for(const id of ids){const el=$(id);if(el)el.value='';}}
 
 function renderPager(id,{page=1,totalPages=1,total=0,label='bản ghi'}={},onPage){
   const host=$(id);if(!host)return;
@@ -138,22 +164,30 @@ async function confirmPayos(){
 }
 
 async function loadOrders(){
-  const d=await api(`/api/admin/orders?page=${orderPage}&perPage=${PAGE_SIZE}`);orderTotalPages=Math.max(1,Number(d.totalPages||1));
+  const params=buildListParams(orderPage,orderFilters);
+  const d=await api(`/api/admin/orders?${params.toString()}`);orderTotalPages=Math.max(1,Number(d.totalPages||1));
   if(orderPage>orderTotalPages){orderPage=orderTotalPages;return loadOrders();}
-  $('ordersTable').querySelector('tbody').innerHTML=(d.orders||[]).map(o=>`<tr><td><b>${esc(o.payment_code)}</b></td><td>${esc(o.user_contact||o.user_id)}</td><td>${esc(o.plan_name)}</td><td>${esc(money.format(o.amount_vnd||0))}</td><td>${esc(viDate(o.created_at))}</td><td><span class="admin-pill ${o.status==='paid'?'ok':o.status==='pending'?'warn':''}">${esc(o.status)}</span></td><td>${o.status==='pending'?`<div class="admin-action-row"><button class="button primary small approve-order" data-order="${esc(o.id)}" type="button">Xác nhận đã thanh toán</button><button class="button danger small cancel-order" data-order="${esc(o.id)}" type="button">Hủy thanh toán</button></div>`:'—'}</td></tr>`).join('')||'<tr><td colspan="7">Chưa có đơn hàng.</td></tr>';
+  $('ordersTable').querySelector('tbody').innerHTML=(d.orders||[]).map(o=>`<tr><td><b>${esc(o.payment_code)}</b></td><td>${esc(o.user_contact||o.user_id)}</td><td>${esc(o.plan_name)}</td><td>${esc(money.format(o.amount_vnd||0))}</td><td>${esc(viDate(o.created_at))}</td><td><span class="admin-pill ${o.status==='paid'?'ok':o.status==='pending'?'warn':''}">${esc(o.status)}</span></td><td>${o.status==='pending'?`<div class="admin-action-row"><button class="button primary small approve-order" data-order="${esc(o.id)}" type="button">Xác nhận đã thanh toán</button><button class="button danger small cancel-order" data-order="${esc(o.id)}" type="button">Hủy thanh toán</button></div>`:'—'}</td></tr>`).join('')||'<tr><td colspan="7">Không có đơn hàng phù hợp bộ lọc.</td></tr>';
   document.querySelectorAll('.approve-order').forEach(b=>b.addEventListener('click',()=>approveOrder(b.dataset.order)));
   document.querySelectorAll('.cancel-order').forEach(b=>b.addEventListener('click',()=>cancelOrder(b.dataset.order)));
-  renderPager('ordersPagination',{page:d.page,totalPages:orderTotalPages,total:d.total,label:'đơn hàng'},next=>{orderPage=next;loadOrders();});
+  renderPager('ordersPagination',{page:d.page,totalPages:orderTotalPages,total:d.total,label:hasFilters(orderFilters)?'đơn phù hợp':'đơn hàng'},next=>{orderPage=next;loadOrders();});
+  if(d.searchTruncated)msg('orderMessage','info','Kết quả tra cứu đang giới hạn trong 5.000 đơn gần nhất phù hợp điều kiện. Hãy thu hẹp bộ lọc nếu cần.');
 }
+async function runOrderSearch(){orderFilters=collectOrderFilters();orderPage=1;msg('orderMessage','','');await loadOrders();}
+async function clearOrderFilters(){orderFilters={};orderPage=1;clearInputs(['orderSearchInput','orderCodeFilter','orderUserFilter','orderPlanFilter','orderAmountMinFilter','orderAmountMaxFilter','orderDateFromFilter','orderDateToFilter','orderStatusFilter']);msg('orderMessage','','');await loadOrders();}
 async function approveOrder(id){try{await api(`/api/admin/orders/${id}/approve`,{method:'POST',body:'{}'});msg('orderMessage','success','Đã xác nhận thanh toán và cộng lượt vào tài khoản.');await Promise.all([loadOrders(),loadMetrics(),loadUsers()]);}catch(e){msg('orderMessage','error',e.message);}}
 async function cancelOrder(id){if(!window.confirm('Hủy giao dịch đang chờ này? QR/link payOS cũng sẽ được hủy nếu còn hiệu lực.'))return;try{await api(`/api/admin/orders/${id}/cancel`,{method:'POST',body:JSON.stringify({reason:'Quản trị viên hủy giao dịch'})});msg('orderMessage','success','Đã hủy giao dịch.');await Promise.all([loadOrders(),loadMetrics()]);}catch(e){msg('orderMessage','error',e.message);}}
 
 async function loadImports(){
-  const d=await api(`/api/admin/imports?page=${importPage}&perPage=${PAGE_SIZE}`);importTotalPages=Math.max(1,Number(d.totalPages||1));
+  const params=buildListParams(importPage,importFilters);
+  const d=await api(`/api/admin/imports?${params.toString()}`);importTotalPages=Math.max(1,Number(d.totalPages||1));
   if(importPage>importTotalPages){importPage=importTotalPages;return loadImports();}
-  $('importsTable').querySelector('tbody').innerHTML=(d.imports||[]).map(x=>`<tr><td><b>${esc(x.user_contact||x.user_id||'—')}</b></td><td>${esc(viDate(x.created_at))}</td><td>${esc(x.parser_mode||x.provider||'—')}</td><td>${esc(x.model||'Không dùng AI')}</td><td>${esc(secs(x.latency_ms))}</td><td><span class="admin-pill ${x.status==='success'?'ok':'warn'}">${esc(x.status)}</span></td></tr>`).join('')||'<tr><td colspan="6">Chưa có dữ liệu.</td></tr>';
-  renderPager('importsPagination',{page:d.page,totalPages:importTotalPages,total:d.total,label:'lượt đọc hồ sơ'},next=>{importPage=next;loadImports();});
+  $('importsTable').querySelector('tbody').innerHTML=(d.imports||[]).map(x=>`<tr><td><b>${esc(x.user_contact||x.user_id||'—')}</b></td><td>${esc(viDate(x.created_at))}</td><td>${esc(x.parser_mode||x.provider||'—')}</td><td>${esc(x.model||'Không dùng AI')}</td><td>${esc(secs(x.latency_ms))}</td><td><span class="admin-pill ${x.status==='success'?'ok':'warn'}">${esc(x.status)}</span></td></tr>`).join('')||'<tr><td colspan="6">Không có lượt đọc hồ sơ phù hợp bộ lọc.</td></tr>';
+  renderPager('importsPagination',{page:d.page,totalPages:importTotalPages,total:d.total,label:hasFilters(importFilters)?'kết quả':'lượt đọc hồ sơ'},next=>{importPage=next;loadImports();});
+  if(d.searchTruncated)msg('importMessage','info','Kết quả tra cứu đang giới hạn trong 5.000 lượt đọc hồ sơ gần nhất phù hợp điều kiện. Hãy thu hẹp bộ lọc nếu cần.');
 }
+async function runImportSearch(){importFilters=collectImportFilters();importPage=1;msg('importMessage','','');await loadImports();}
+async function clearImportFilters(){importFilters={};importPage=1;clearInputs(['importSearchInput','importUserFilter','importParserFilter','importModelFilter','importLatencyMinFilter','importLatencyMaxFilter','importDateFromFilter','importDateToFilter','importStatusFilter']);msg('importMessage','','');await loadImports();}
 
 async function refreshAll(){
   const tasks=[loadMetrics(),loadUsers(),loadPlans(),loadOrders(),loadImports(),loadPayosStatus()];
@@ -169,5 +203,13 @@ $('refreshUsersBtn')?.addEventListener('click',loadUsers);
 $('userSearchBtn')?.addEventListener('click',runUserSearch);
 $('userSearchClearBtn')?.addEventListener('click',clearUserSearch);
 $('userSearchInput')?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();runUserSearch();}});
+$('orderSearchBtn')?.addEventListener('click',runOrderSearch);
+$('orderFilterClearBtn')?.addEventListener('click',clearOrderFilters);
+$('refreshOrdersBtn')?.addEventListener('click',loadOrders);
+$('importSearchBtn')?.addEventListener('click',runImportSearch);
+$('importFilterClearBtn')?.addEventListener('click',clearImportFilters);
+$('refreshImportsBtn')?.addEventListener('click',loadImports);
+['orderSearchInput','orderCodeFilter','orderUserFilter','orderPlanFilter','orderAmountMinFilter','orderAmountMaxFilter'].forEach(id=>$(id)?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();runOrderSearch();}}));
+['importSearchInput','importUserFilter','importParserFilter','importModelFilter','importLatencyMinFilter','importLatencyMaxFilter'].forEach(id=>$(id)?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();runImportSearch();}}));
 $('planForm')?.addEventListener('submit',createPlan);
 authenticate().catch(e=>showLogin(e.message));

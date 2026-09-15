@@ -217,7 +217,7 @@ app.get('/api/config',async(_req,res)=>{
 });
 app.get('/api/health',async(_req,res)=>{
   const authProviders=await getPublicAuthProviderSettings();
-  res.json({ok:true,version:'3.8.0',authConfigured:supabaseConfigured,googleAuthEnabled:authProviders.google,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'});
+  res.json({ok:true,version:'3.11.0',authConfigured:supabaseConfigured,googleAuthEnabled:authProviders.google,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'});
 });
 app.get('/api/system/status',async(_req,res)=>{
   try{res.json(await databaseStatus());}
@@ -383,7 +383,11 @@ app.post('/api/benefits/calculate',requireUser,async(req,res)=>{
         periods,
         settlementMonth:String(req.body?.settlementMonth||''),
         actualPaidVnd:Number(req.body?.actualPaidVnd||0),
-        eligibilityReason:String(req.body?.eligibilityReason||'')
+        eligibilityReason:String(req.body?.eligibilityReason||''),
+        person:req.body?.person||{},
+        stoppedParticipation:Boolean(req.body?.stoppedParticipation),
+        stopped12Months:Boolean(req.body?.stopped12Months),
+        seriousConditionConfirmed:Boolean(req.body?.seriousConditionConfirmed)
       });
       if(mode==='file'){
         const jobId=String(req.body?.importJobId||'');
@@ -399,11 +403,20 @@ app.post('/api/benefits/calculate',requireUser,async(req,res)=>{
     }else{
       return res.status(400).json({code:'BENEFIT_TYPE_INVALID',error:'Loại chế độ cần tính không hợp lệ.'});
     }
-    if(!result?.ok)return res.status(400).json({code:'BENEFIT_INPUT_INVALID',error:(result?.errors||['Dữ liệu chưa đủ để tính.']).join(' '),details:result});
+    if(!result?.ok)return res.status(400).json({code:'BENEFIT_INPUT_INVALID',error:(result?.errors||['Dữ liệu chưa đủ để tính.']).join(' '),details:result,charged:false});
+    if(result?.eligible===false){
+      return res.status(422).json({
+        code:'BENEFIT_NOT_ELIGIBLE',
+        error:'Chưa đủ điều kiện hưởng theo dữ liệu đã nhập. Lượt tính không bị trừ.',
+        details:result,
+        charged:false,
+        wallet:await getWallet(req.user.id)
+      });
+    }
     if(mode==='manual'){
       await consumeCredit(req.user.id,'direct','benefit_calculation',{benefitType,inputHash:stableHash(req.body||{})});
     }
-    res.json({ok:true,benefitType,mode,result,wallet:await getWallet(req.user.id)});
+    res.json({ok:true,benefitType,mode,result,charged:mode==='manual',wallet:await getWallet(req.user.id)});
   }catch(e){
     res.status(e.code==='NO_CREDIT'?402:(e.status||400)).json({code:e.code||'BENEFIT_CALCULATION_FAILED',error:e.code==='NO_CREDIT'?'Bạn đã hết lượt nhập thủ công. Vui lòng mua thêm gói.':(e.message||'Không tính được chế độ.'),details:e.details});
   }
@@ -414,6 +427,18 @@ app.post('/api/calculate',requireUser,async(req,res)=>{
     const mode=req.body?.mode==='file'?'file':'manual';
     const calculation=calculateRequest(req.body);
     const inputHash=stableHash({mode,person:req.body?.person,periods:req.body?.periods,autoExtend:req.body?.autoExtend,forecastOptions:req.body?.forecastOptions});
+
+    if(calculation?.result?.eligible===false){
+      return res.status(422).json({
+        code:'PENSION_NOT_ELIGIBLE',
+        error:'Chưa đủ điều kiện hưởng lương hưu theo dữ liệu đã nhập. Lượt tính không bị trừ.',
+        details:calculation.result,
+        avg:calculation.avg,
+        input:calculation.input,
+        charged:false,
+        wallet:await getWallet(req.user.id)
+      });
+    }
 
     if(mode==='manual'){
       await consumeCredit(req.user.id,'direct','direct_calculation',{inputHash});
@@ -591,6 +616,34 @@ async function findAuthUsers(rawQuery, page, perPage) {
   return { users: matches.slice(start, start + perPage), total: matches.length, searchTruncated };
 }
 
+function adminFilterText(value, maxLength = 160) {
+  return String(value ?? '').trim().slice(0, maxLength);
+}
+
+function adminOrText(value, maxLength = 120) {
+  return adminFilterText(value, maxLength).replace(/[(),"%_*]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function adminNumber(value) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function adminDateBoundary(value, endOfDay = false) {
+  const raw = adminFilterText(value, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const date = new Date(`${raw}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}+07:00`);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+}
+
+async function matchingAuthUserIds(rawQuery, limit = 100) {
+  const q = adminFilterText(rawQuery, 160);
+  if (!q) return { ids: [], truncated: false };
+  const result = await findAuthUsers(q, 1, Math.max(1, Math.min(5000, limit)));
+  return { ids: result.users.map(user => user.id), truncated: Boolean(result.searchTruncated || result.total > limit) };
+}
+
 // Admin API
 app.get('/api/admin/metrics',requireAdmin,async(_req,res)=>{
   const [{count:userCount},{count:pendingOrders},{data:paidOrders},{data:imports}]=await Promise.all([
@@ -679,25 +732,100 @@ app.delete('/api/admin/plans/:id',requireAdmin,async(req,res)=>{
   }catch(e){const n=normalizeDatabaseError(e);res.status(n.status||400).json({code:n.code||'PLAN_DELETE_FAILED',error:n.message||'Không xóa được gói.'});}
 });
 app.get('/api/admin/orders',requireAdmin,async(req,res)=>{
-  const {page,perPage,from,to}=adminPagination(req,10);
-  const {data,error,count}=await supabaseAdmin.from('orders').select('*',{count:'exact'}).order('created_at',{ascending:false}).range(from,to);
-  if(error)return res.status(500).json({error:error.message});
-  const orders=data||[];
-  const contacts=await resolveUserContacts(orders.map(order=>order.user_id));
-  const total=count||0;
-  res.json({orders:orders.map(order=>({...order,user_contact:contacts.get(order.user_id)||order.user_id})),page,perPage,total,totalPages:Math.max(1,Math.ceil(total/perPage))});
+  try{
+    const {page,perPage,from,to}=adminPagination(req,10);
+    const q=adminOrText(req.query.q);
+    const code=adminFilterText(req.query.code);
+    const user=adminFilterText(req.query.user);
+    const plan=adminFilterText(req.query.plan);
+    const amountMin=adminNumber(req.query.amountMin);
+    const amountMax=adminNumber(req.query.amountMax);
+    const dateFrom=adminDateBoundary(req.query.dateFrom,false);
+    const dateTo=adminDateBoundary(req.query.dateTo,true);
+    const allowedStatuses=new Set(['pending','paid','cancelled','expired']);
+    const status=allowedStatuses.has(String(req.query.status||''))?String(req.query.status):'';
+
+    const [userMatch,qUserMatch]=await Promise.all([
+      user?matchingAuthUserIds(user,100):Promise.resolve({ids:[],truncated:false}),
+      q?matchingAuthUserIds(q,100):Promise.resolve({ids:[],truncated:false})
+    ]);
+    if(user&&!userMatch.ids.length)return res.json({orders:[],page,perPage,total:0,totalPages:1,filters:{q,code,user,plan,amountMin,amountMax,dateFrom:req.query.dateFrom||'',dateTo:req.query.dateTo||'',status}});
+
+    let query=supabaseAdmin.from('orders').select('*',{count:'exact'});
+    if(code)query=query.ilike('payment_code',`%${code}%`);
+    if(userMatch.ids.length)query=query.in('user_id',userMatch.ids);
+    if(plan)query=query.ilike('plan_name',`%${plan}%`);
+    if(amountMin!==null)query=query.gte('amount_vnd',amountMin);
+    if(amountMax!==null)query=query.lte('amount_vnd',amountMax);
+    if(dateFrom)query=query.gte('created_at',dateFrom);
+    if(dateTo)query=query.lte('created_at',dateTo);
+    if(status)query=query.eq('status',status);
+    if(q){
+      const clauses=[`payment_code.ilike.%${q}%`,`plan_name.ilike.%${q}%`,`status.ilike.%${q}%`];
+      if(/^\d+$/.test(q))clauses.push(`amount_vnd.eq.${Number(q)}`);
+      if(qUserMatch.ids.length)clauses.push(`user_id.in.(${qUserMatch.ids.join(',')})`);
+      query=query.or(clauses.join(','));
+    }
+    const {data,error,count}=await query.order('created_at',{ascending:false}).range(from,to);
+    if(error)throw error;
+    const orders=data||[];
+    const contacts=await resolveUserContacts(orders.map(order=>order.user_id));
+    const total=count||0;
+    res.json({
+      orders:orders.map(order=>({...order,user_contact:contacts.get(order.user_id)||order.user_id})),
+      page,perPage,total,totalPages:Math.max(1,Math.ceil(total/perPage)),
+      searchTruncated:Boolean(userMatch.truncated||qUserMatch.truncated),
+      filters:{q,code,user,plan,amountMin,amountMax,dateFrom:req.query.dateFrom||'',dateTo:req.query.dateTo||'',status}
+    });
+  }catch(error){res.status(500).json({code:'ADMIN_ORDERS_LOAD_FAILED',error:error.message||'Không tải được đơn hàng.'});}
 });
 
 app.get('/api/admin/imports',requireAdmin,async(req,res)=>{
-  const {page,perPage,from,to}=adminPagination(req,10);
-  const {data,error,count}=await supabaseAdmin.from('import_jobs')
-    .select('id,user_id,latency_ms,provider,model,parser_mode,status,source_count,created_at',{count:'exact'})
-    .order('created_at',{ascending:false}).range(from,to);
-  if(error)return res.status(500).json({error:error.message});
-  const imports=data||[];
-  const contacts=await resolveUserContacts(imports.map(row=>row.user_id));
-  const total=count||0;
-  res.json({imports:imports.map(row=>({...row,user_contact:contacts.get(row.user_id)||row.user_id})),page,perPage,total,totalPages:Math.max(1,Math.ceil(total/perPage))});
+  try{
+    const {page,perPage,from,to}=adminPagination(req,10);
+    const q=adminOrText(req.query.q);
+    const user=adminFilterText(req.query.user);
+    const parser=adminFilterText(req.query.parser);
+    const model=adminFilterText(req.query.model);
+    const latencyMinSeconds=adminNumber(req.query.latencyMinSeconds);
+    const latencyMaxSeconds=adminNumber(req.query.latencyMaxSeconds);
+    const dateFrom=adminDateBoundary(req.query.dateFrom,false);
+    const dateTo=adminDateBoundary(req.query.dateTo,true);
+    const allowedStatuses=new Set(['processing','success','failed']);
+    const status=allowedStatuses.has(String(req.query.status||''))?String(req.query.status):'';
+
+    const [userMatch,qUserMatch]=await Promise.all([
+      user?matchingAuthUserIds(user,100):Promise.resolve({ids:[],truncated:false}),
+      q?matchingAuthUserIds(q,100):Promise.resolve({ids:[],truncated:false})
+    ]);
+    if(user&&!userMatch.ids.length)return res.json({imports:[],page,perPage,total:0,totalPages:1,filters:{q,user,parser,model,latencyMinSeconds,latencyMaxSeconds,dateFrom:req.query.dateFrom||'',dateTo:req.query.dateTo||'',status}});
+
+    let query=supabaseAdmin.from('import_jobs').select('id,user_id,latency_ms,provider,model,parser_mode,status,source_count,created_at',{count:'exact'});
+    if(userMatch.ids.length)query=query.in('user_id',userMatch.ids);
+    if(parser)query=query.ilike('parser_mode',`%${parser}%`);
+    if(model)query=query.ilike('model',`%${model}%`);
+    if(latencyMinSeconds!==null)query=query.gte('latency_ms',Math.round(latencyMinSeconds*1000));
+    if(latencyMaxSeconds!==null)query=query.lte('latency_ms',Math.round(latencyMaxSeconds*1000));
+    if(dateFrom)query=query.gte('created_at',dateFrom);
+    if(dateTo)query=query.lte('created_at',dateTo);
+    if(status)query=query.eq('status',status);
+    if(q){
+      const clauses=[`parser_mode.ilike.%${q}%`,`provider.ilike.%${q}%`,`model.ilike.%${q}%`,`status.ilike.%${q}%`];
+      if(qUserMatch.ids.length)clauses.push(`user_id.in.(${qUserMatch.ids.join(',')})`);
+      query=query.or(clauses.join(','));
+    }
+    const {data,error,count}=await query.order('created_at',{ascending:false}).range(from,to);
+    if(error)throw error;
+    const imports=data||[];
+    const contacts=await resolveUserContacts(imports.map(row=>row.user_id));
+    const total=count||0;
+    res.json({
+      imports:imports.map(row=>({...row,user_contact:contacts.get(row.user_id)||row.user_id})),
+      page,perPage,total,totalPages:Math.max(1,Math.ceil(total/perPage)),
+      searchTruncated:Boolean(userMatch.truncated||qUserMatch.truncated),
+      filters:{q,user,parser,model,latencyMinSeconds,latencyMaxSeconds,dateFrom:req.query.dateFrom||'',dateTo:req.query.dateTo||'',status}
+    });
+  }catch(error){res.status(500).json({code:'ADMIN_IMPORTS_LOAD_FAILED',error:error.message||'Không tải được hiệu năng đọc hồ sơ.'});}
 });
 app.post('/api/admin/orders/:id/approve',requireAdmin,async(req,res)=>{
   const {data,error}=await supabaseAdmin.rpc('approve_order',{p_order_id:req.params.id,p_admin_id:req.user.id});if(error)return res.status(400).json({error:error.message});res.json({order:Array.isArray(data)?data[0]:data});

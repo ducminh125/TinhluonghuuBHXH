@@ -89,6 +89,30 @@
           <p>Theo dõi giao dịch và xử lý các đơn đang chờ.</p>
         </div>
         <div id="orderMessage"></div>
+        <div class="admin-filter-panel" aria-label="Bộ lọc đơn hàng">
+          <div class="admin-filter-head">
+            <div>
+              <strong>Bộ lọc đơn hàng</strong>
+              <span>Lọc theo từng trường hoặc tra cứu nhanh trên nhiều trường.</span>
+            </div>
+          </div>
+          <div class="admin-filter-grid orders-filter-grid">
+            <label class="field admin-filter-span-2"><span>Tra cứu chung</span><input id="orderSearchInput" type="search" placeholder="Mã thanh toán, tài khoản, gói, trạng thái…" autocomplete="off" /></label>
+            <label class="field"><span>Mã thanh toán</span><input id="orderCodeFilter" type="search" placeholder="VD: 175..." autocomplete="off" /></label>
+            <label class="field"><span>Tài khoản</span><input id="orderUserFilter" type="search" placeholder="Email hoặc mã tài khoản" autocomplete="off" /></label>
+            <label class="field"><span>Gói</span><input id="orderPlanFilter" type="search" placeholder="Tên gói" autocomplete="off" /></label>
+            <label class="field"><span>Số tiền từ</span><input id="orderAmountMinFilter" type="number" min="0" step="1000" placeholder="0" /></label>
+            <label class="field"><span>Số tiền đến</span><input id="orderAmountMaxFilter" type="number" min="0" step="1000" placeholder="Không giới hạn" /></label>
+            <label class="field"><span>Từ ngày</span><input id="orderDateFromFilter" type="date" /></label>
+            <label class="field"><span>Đến ngày</span><input id="orderDateToFilter" type="date" /></label>
+            <label class="field"><span>Trạng thái</span><select id="orderStatusFilter"><option value="">Tất cả</option><option value="pending">Chờ thanh toán</option><option value="paid">Đã thanh toán</option><option value="cancelled">Đã hủy</option><option value="expired">Hết hạn</option></select></label>
+          </div>
+          <div class="admin-filter-actions">
+            <button class="button primary small" id="orderSearchBtn" type="button">Tra cứu</button>
+            <button class="button secondary small" id="orderFilterClearBtn" type="button">Xóa lọc</button>
+            <button class="button secondary small" id="refreshOrdersBtn" type="button">Làm mới</button>
+          </div>
+        </div>
         <div class="payos-admin-box">
           <div>
             <strong>Thanh toán tự động payOS</strong>
@@ -110,6 +134,31 @@
         <div class="section-heading">
           <div><span class="step">04</span><h2>Hiệu năng đọc hồ sơ</h2></div>
           <p>Theo dõi tốc độ, phương thức xử lý và trạng thái đọc hồ sơ.</p>
+        </div>
+        <div id="importMessage"></div>
+        <div class="admin-filter-panel" aria-label="Bộ lọc hiệu năng đọc hồ sơ">
+          <div class="admin-filter-head">
+            <div>
+              <strong>Bộ lọc đọc hồ sơ</strong>
+              <span>Lọc theo từng trường đang hiển thị hoặc dùng tra cứu chung.</span>
+            </div>
+          </div>
+          <div class="admin-filter-grid imports-filter-grid">
+            <label class="field admin-filter-span-2"><span>Tra cứu chung</span><input id="importSearchInput" type="search" placeholder="Tài khoản, kiểu xử lý, model, trạng thái…" autocomplete="off" /></label>
+            <label class="field"><span>Tài khoản</span><input id="importUserFilter" type="search" placeholder="Email hoặc mã tài khoản" autocomplete="off" /></label>
+            <label class="field"><span>Kiểu xử lý</span><input id="importParserFilter" type="search" placeholder="structured, vision, text…" autocomplete="off" /></label>
+            <label class="field"><span>Model</span><input id="importModelFilter" type="search" placeholder="Tên model" autocomplete="off" /></label>
+            <label class="field"><span>Thời gian từ (giây)</span><input id="importLatencyMinFilter" type="number" min="0" step="0.1" placeholder="0" /></label>
+            <label class="field"><span>Thời gian đến (giây)</span><input id="importLatencyMaxFilter" type="number" min="0" step="0.1" placeholder="Không giới hạn" /></label>
+            <label class="field"><span>Từ ngày</span><input id="importDateFromFilter" type="date" /></label>
+            <label class="field"><span>Đến ngày</span><input id="importDateToFilter" type="date" /></label>
+            <label class="field"><span>Trạng thái</span><select id="importStatusFilter"><option value="">Tất cả</option><option value="processing">Đang xử lý</option><option value="success">Thành công</option><option value="failed">Lỗi</option></select></label>
+          </div>
+          <div class="admin-filter-actions">
+            <button class="button primary small" id="importSearchBtn" type="button">Tra cứu</button>
+            <button class="button secondary small" id="importFilterClearBtn" type="button">Xóa lọc</button>
+            <button class="button secondary small" id="refreshImportsBtn" type="button">Làm mới</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table class="admin-table" id="importsTable">

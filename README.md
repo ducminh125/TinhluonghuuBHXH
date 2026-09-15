@@ -1,4 +1,4 @@
-# VN Social Insurance Benefits Calculator v3.9
+# VN Social Insurance Benefits Calculator v3.11
 
 Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 - lương hưu;
@@ -10,6 +10,24 @@ Hệ thống dùng Supabase cho tài khoản/database, payOS cho VietQR + webhoo
 
 > Kết quả là tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH, hồ sơ thực tế và văn bản có hiệu lực tại thời điểm giải quyết.
 
+
+## Mới trong v3.11 — kiểm tra điều kiện hưởng trước khi trừ lượt
+
+- **BHXH một lần:** kiểm tra điều kiện theo từng lý do trước khi tính. Trường hợp có thời gian đóng trước 01/07/2025, ngừng tham gia đủ 12 tháng chỉ được tính khi tổng thời gian đóng **chưa đủ 20 năm**. Các lý do khác như ra nước ngoài định cư hoặc bệnh/suy giảm thuộc diện luật định được kiểm tra theo điều kiện riêng, không áp dụng máy móc ngưỡng 20 năm.
+- **Đủ tuổi nhưng xin BHXH một lần:** kiểm tra ngày sinh/giới tính và yêu cầu thời gian đóng **chưa đủ 15 năm** theo Luật BHXH 2024.
+- **Trợ cấp thất nghiệp:** bổ sung kiểm tra đang đóng BHTN, chấm dứt việc làm đúng pháp luật, đủ 12 tháng trong cửa sổ 24/36 tháng, nộp hồ sơ trong 03 tháng và không thuộc trường hợp loại trừ sau 10 ngày làm việc.
+- **Thai sản:** khóa điều kiện cho trường hợp sinh con, dưỡng thai, điều trị vô sinh, cha nghỉ khi vợ sinh, khám thai, thai nghén và biện pháp tránh thai. Giao diện mô tả rõ 4 trường hợp đặc biệt.
+- **Không trừ lượt khi không đủ điều kiện:** backend trả `422 BENEFIT_NOT_ELIGIBLE` / `PENSION_NOT_ELIGIBLE` trước khi gọi `consumeCredit`. Giao diện chỉ thông báo lý do, không hiển thị số tiền và không tạo nút lưu lịch sử.
+- Không thay đổi database schema, payOS hoặc Environment Variables.
+
+
+## Mới trong v3.10 — bộ lọc quản trị chi tiết
+
+- **Đơn hàng:** có tra cứu chung và lọc riêng theo mã thanh toán, tài khoản, gói, khoảng số tiền, khoảng ngày và trạng thái.
+- **Hiệu năng đọc hồ sơ:** có tra cứu chung và lọc theo tài khoản, parser/kiểu xử lý, model, khoảng thời gian xử lý, khoảng ngày và trạng thái.
+- Kết quả sau lọc tiếp tục phân trang **10 bản ghi/trang** ở backend.
+- Tra cứu tài khoản hỗ trợ email, tên hoặc mã tài khoản.
+- Không thay đổi database schema, công thức, quota hay thanh toán.
 
 ## Mới trong v3.9 — hoàn thiện UI/UX
 
@@ -186,7 +204,7 @@ Khuyến nghị:
 - payOS: QR/webhook;
 - ShopAIKey: AI gateway.
 
-Xem `DEPLOY-V3.8.md`.
+Xem `DEPLOY-V3.11.md`.
 
 ## 11. Kiểm thử
 
@@ -194,7 +212,7 @@ Xem `DEPLOY-V3.8.md`.
 npm test
 ```
 
-Bản đóng gói v3.8: **53/53 test PASS**.
+Bản đóng gói v3.11: **72/72 test PASS**.
 
 ## 12. File chính
 

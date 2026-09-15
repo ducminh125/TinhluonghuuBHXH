@@ -801,13 +801,23 @@ form.addEventListener("submit", async event => {
       const response = await window.PensionAccount.authorizedFetch("/api/calculate", { method: "POST", body: JSON.stringify(requestPayload) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const err = new Error(payload.error || `HTTP ${response.status}`); err.status = response.status; throw err;
+        const err = new Error(payload.error || `HTTP ${response.status}`);
+        err.status = response.status;
+        err.payload = payload;
+        throw err;
       }
       await window.PensionAccount.refreshMe();
       lastCalculationPayload = { mode: payload.mode || lastEntryMode, request: requestPayload, result: { avg: payload.avg, result: payload.result, input: payload.input } };
       renderResult(payload.avg, payload.result, payload.input);
     } catch (error) {
-      resultBox.innerHTML = `<div class="alert error"><strong>Chưa thể tính:</strong> ${escapeHtml(error.message)}</div>`;
+      if (error.status === 422) {
+        const reasons = error.payload?.details?.errors || error.payload?.details?.eligibilityErrors || [];
+        lastCalculationPayload = null;
+        resultBox.innerHTML = `<div class="alert error"><strong>Chưa đủ điều kiện hưởng.</strong><p>Lượt tính không bị trừ.</p>${reasons.length ? `<ul>${reasons.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</div>`;
+        try { await window.PensionAccount?.refreshMe?.(); } catch {}
+      } else {
+        resultBox.innerHTML = `<div class="alert error"><strong>Chưa thể tính:</strong> ${escapeHtml(error.message)}</div>`;
+      }
       resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
       if (error.status === 402) window.PensionAccount.openPlans();
     } finally {
@@ -833,6 +843,12 @@ form.addEventListener("submit", async event => {
   }
   const input = { ...person, averageBase: avg.averageBase, totalMonths: avg.totalMonths, compulsoryMonths: avg.compulsoryMonths, firstCompulsoryYm: avg.firstCompulsoryYm };
   const result = calculatePension(input);
+  if (!result.eligible) {
+    lastCalculationPayload = null;
+    resultBox.innerHTML = `<div class="alert error"><strong>Chưa đủ điều kiện hưởng.</strong><p>Lượt tính không bị trừ.</p><ul>${(result.errors || []).map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+    resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   lastCalculationPayload = { mode:lastEntryMode, request:requestPayload, result:{avg,result,input} };
   renderResult(avg, result, input);
 });
@@ -844,5 +860,9 @@ updateRetirementCase();
 window.PensionCalculatorState = {
   getPeriods: () => getPeriods({ includeBlank: false }),
   getEntryMode: () => lastEntryMode,
-  getImportJobId: () => lastImportJobId
+  getImportJobId: () => lastImportJobId,
+  getPerson: () => ({
+    sex: $("sex")?.value || '',
+    birthDate: parseVietnameseDate($("birthDate")?.value || '')
+  })
 };
