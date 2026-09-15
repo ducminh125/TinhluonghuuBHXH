@@ -86,7 +86,10 @@ async function loadPayosStatus(){
   if(!status)return;
   try{
     const d=await api('/api/admin/payments/payos/status');
-    status.textContent=d.configured?'payOS đã có đủ khóa kết nối trên server.':'Chưa cấu hình đủ PAYOS_CLIENT_ID / PAYOS_API_KEY / PAYOS_CHECKSUM_KEY.';
+    const x=d.diagnostics||{};
+    status.textContent=d.configured
+      ? `payOS đã có đủ khóa kết nối · API: ${x.apiBase||'mặc định'} · APP_URL: ${x.appUrl||'chưa xác định'}`
+      : `Chưa đủ cấu hình payOS (Client ID: ${x.clientIdPresent?'có':'thiếu'}, API Key: ${x.apiKeyPresent?'có':'thiếu'}, Checksum Key: ${x.checksumKeyPresent?'có':'thiếu'}).`;
     status.className=d.configured?'ok-text':'warn-text';
     if(url)url.textContent=d.webhookUrl||'';if(btn)btn.disabled=!d.configured;
   }catch(e){status.textContent=e.message;if(btn)btn.disabled=true;}

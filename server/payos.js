@@ -1,13 +1,16 @@
 import crypto from 'node:crypto';
 
-const API_BASE = process.env.PAYOS_API_BASE || 'https://api-merchant.payos.vn';
+const DEFAULT_API_BASE = 'https://api-merchant.payos.vn';
+const API_BASE = String(process.env.PAYOS_API_BASE || DEFAULT_API_BASE).trim().replace(/\/$/, '');
+const CLIENT_ID = String(process.env.PAYOS_CLIENT_ID || '').trim();
+const API_KEY = String(process.env.PAYOS_API_KEY || '').trim();
+const CHECKSUM_KEY = String(process.env.PAYOS_CHECKSUM_KEY || '').trim();
+const REQUEST_TIMEOUT_MS = Math.max(3000, Math.min(30000, Number(process.env.PAYOS_TIMEOUT_MS || 12000)));
 
-export const payosConfigured = Boolean(
-  process.env.PAYOS_CLIENT_ID && process.env.PAYOS_API_KEY && process.env.PAYOS_CHECKSUM_KEY
-);
+export const payosConfigured = Boolean(CLIENT_ID && API_KEY && CHECKSUM_KEY);
 
 function hmac(value) {
-  return crypto.createHmac('sha256', process.env.PAYOS_CHECKSUM_KEY || '').update(value).digest('hex');
+  return crypto.createHmac('sha256', CHECKSUM_KEY).update(value).digest('hex');
 }
 
 function signatureValue(value) {
@@ -33,57 +36,150 @@ function sortedDataString(data = {}) {
 function requestHeaders() {
   return {
     'Content-Type': 'application/json',
-    'x-client-id': process.env.PAYOS_CLIENT_ID || '',
-    'x-api-key': process.env.PAYOS_API_KEY || ''
+    'x-client-id': CLIENT_ID,
+    'x-api-key': API_KEY
   };
+}
+
+function parseMaybeJson(text) {
+  if (!text) return {};
+  try { return JSON.parse(text); } catch { return { raw: text.slice(0, 1000) }; }
+}
+
+function classifyPayosFailure(response, payload) {
+  const providerCode = String(payload?.code || '').trim();
+  const providerMessage = String(payload?.desc || payload?.message || '').trim();
+  let code = providerCode || `PAYOS_HTTP_${response.status}`;
+  let message = providerMessage || `payOS HTTP ${response.status}`;
+
+  if (response.status === 401) {
+    code = 'PAYOS_AUTH_FAILED';
+    message = 'payOS từ chối thông tin kết nối. Hãy kiểm tra Client ID, API Key và Checksum Key có cùng thuộc một kênh thanh toán hay không.';
+  } else if (response.status === 429) {
+    code = 'PAYOS_RATE_LIMIT';
+    message = 'payOS đang giới hạn tần suất yêu cầu. Vui lòng thử lại sau ít phút.';
+  } else if (/signature|chữ ký|checksum/i.test(providerMessage)) {
+    code = 'PAYOS_SIGNATURE_REJECTED';
+    message = 'payOS báo chữ ký tạo đơn không hợp lệ. Hãy kiểm tra Checksum Key của đúng kênh thanh toán.';
+  } else if (/order.?code|mã đơn/i.test(providerMessage) && /exist|tồn tại|duplicate|trùng/i.test(providerMessage)) {
+    code = 'PAYOS_ORDER_CODE_DUPLICATE';
+    message = 'Mã đơn thanh toán đã tồn tại trên payOS. Hệ thống sẽ tạo mã mới khi bạn thử lại.';
+  }
+
+  const error = new Error(message);
+  error.code = code;
+  error.status = response.status >= 500 ? 502 : (response.status || 400);
+  error.providerStatus = response.status;
+  error.providerCode = providerCode || null;
+  error.providerMessage = providerMessage || null;
+  return error;
 }
 
 async function payosFetch(path, options = {}) {
   if (!payosConfigured) {
-    const e = new Error('payOS chưa được cấu hình. Hãy thêm PAYOS_CLIENT_ID, PAYOS_API_KEY và PAYOS_CHECKSUM_KEY trên Vercel.');
+    const e = new Error('payOS chưa được cấu hình. Hãy thêm PAYOS_CLIENT_ID, PAYOS_API_KEY và PAYOS_CHECKSUM_KEY trên Vercel rồi Redeploy.');
     e.code = 'PAYOS_NOT_CONFIGURED';
     e.status = 503;
     throw e;
   }
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { ...requestHeaders(), ...(options.headers || {}) }
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload?.code && payload.code !== '00') {
-    const e = new Error(payload?.desc || payload?.message || `payOS HTTP ${response.status}`);
-    e.code = payload?.code || 'PAYOS_API_ERROR';
-    e.status = response.status || 502;
-    e.payload = payload;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: options.signal || controller.signal,
+      headers: { ...requestHeaders(), ...(options.headers || {}) }
+    });
+    const text = await response.text();
+    const payload = parseMaybeJson(text);
+    if (!response.ok || (payload?.code && payload.code !== '00')) {
+      throw classifyPayosFailure(response, payload);
+    }
+    return payload;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const e = new Error(`payOS không phản hồi trong ${Math.round(REQUEST_TIMEOUT_MS / 1000)} giây. Vui lòng thử lại.`);
+      e.code = 'PAYOS_TIMEOUT';
+      e.status = 504;
+      throw e;
+    }
+    if (error?.code) throw error;
+    const e = new Error('Không kết nối được tới payOS. Hãy kiểm tra kết nối Internet của Vercel và thử lại.');
+    e.code = 'PAYOS_NETWORK_ERROR';
+    e.status = 502;
+    e.cause = error;
     throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  return payload;
 }
 
 export function buildPaymentDescription(orderCode) {
-  // payOS may limit description to 9 chars when the bank account is not linked through payOS.
-  return `LH${String(orderCode).slice(-7)}`;
+  // payOS documents a 9-character limit when the receiving account is not linked through payOS.
+  const digits = String(Math.trunc(Number(orderCode) || 0)).replace(/\D/g, '');
+  return `LH${digits.slice(-7).padStart(7, '0')}`;
 }
 
-export async function createPayosPayment({ orderCode, amount, description, returnUrl, cancelUrl, buyerEmail, itemName, expiredAt }) {
-  const body = {
-    orderCode: Number(orderCode),
+export function createPaymentRequestSignature({ amount, cancelUrl, description, orderCode, returnUrl }) {
+  return hmac(sortedDataString({
     amount: Number(amount),
-    description,
-    buyerEmail: buyerEmail || undefined,
-    items: [{ name: String(itemName || 'Goi luong huu').slice(0, 120), quantity: 1, price: Number(amount) }],
-    cancelUrl,
-    returnUrl,
-    expiredAt: Number(expiredAt),
-  };
-  body.signature = hmac(sortedDataString({
-    amount: body.amount,
-    cancelUrl: body.cancelUrl,
-    description: body.description,
-    orderCode: body.orderCode,
-    returnUrl: body.returnUrl
+    cancelUrl: String(cancelUrl),
+    description: String(description),
+    orderCode: Number(orderCode),
+    returnUrl: String(returnUrl)
   }));
+}
+
+export function getPayosDiagnostics() {
+  return {
+    configured: payosConfigured,
+    apiBase: API_BASE,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    clientIdPresent: Boolean(CLIENT_ID),
+    apiKeyPresent: Boolean(API_KEY),
+    checksumKeyPresent: Boolean(CHECKSUM_KEY)
+  };
+}
+
+export async function createPayosPayment({ orderCode, amount, description, returnUrl, cancelUrl, expiredAt }) {
+  const parsedOrderCode = Number(orderCode);
+  const parsedAmount = Math.trunc(Number(amount));
+  if (!Number.isSafeInteger(parsedOrderCode) || parsedOrderCode <= 0) {
+    const e = new Error('Mã đơn thanh toán không hợp lệ.');
+    e.code = 'PAYOS_INVALID_ORDER_CODE'; e.status = 400; throw e;
+  }
+  if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
+    const e = new Error('Số tiền thanh toán không hợp lệ.');
+    e.code = 'PAYOS_INVALID_AMOUNT'; e.status = 400; throw e;
+  }
+  for (const [name, value] of [['returnUrl', returnUrl], ['cancelUrl', cancelUrl]]) {
+    try {
+      const u = new URL(String(value));
+      if (!['http:', 'https:'].includes(u.protocol)) throw new Error('protocol');
+    } catch {
+      const e = new Error(`${name} gửi sang payOS không hợp lệ. Hãy kiểm tra APP_URL trên Vercel.`);
+      e.code = 'PAYOS_INVALID_RETURN_URL'; e.status = 500; throw e;
+    }
+  }
+
+  // Keep the request minimal: only fields required by payOS plus expiry.
+  // Optional buyer/items fields are deliberately omitted to reduce validation failures.
+  const body = {
+    orderCode: parsedOrderCode,
+    amount: parsedAmount,
+    description: String(description || '').slice(0, 9),
+    cancelUrl: String(cancelUrl),
+    returnUrl: String(returnUrl)
+  };
+  if (Number.isInteger(Number(expiredAt)) && Number(expiredAt) > 0) body.expiredAt = Number(expiredAt);
+  body.signature = createPaymentRequestSignature(body);
+
   const payload = await payosFetch('/v2/payment-requests', { method: 'POST', body: JSON.stringify(body) });
+  if (!payload?.data?.qrCode || !payload?.data?.checkoutUrl) {
+    const e = new Error('payOS đã phản hồi nhưng chưa trả về QR/link thanh toán. Vui lòng kiểm tra kênh thanh toán payOS.');
+    e.code = 'PAYOS_INCOMPLETE_RESPONSE'; e.status = 502; throw e;
+  }
   return payload.data;
 }
 

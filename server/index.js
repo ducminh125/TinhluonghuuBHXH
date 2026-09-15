@@ -22,7 +22,7 @@ import {
   normalizeDatabaseError,
   databaseStatus
 } from './supabase.js';
-import { payosConfigured, createPayosPayment, getPayosPayment, verifyPayosWebhook, confirmPayosWebhook, buildPaymentDescription } from './payos.js';
+import { payosConfigured, createPayosPayment, getPayosPayment, verifyPayosWebhook, confirmPayosWebhook, buildPaymentDescription, getPayosDiagnostics } from './payos.js';
 
 const __filename=fileURLToPath(import.meta.url);
 const __dirname=path.dirname(__filename);
@@ -57,8 +57,24 @@ function appBaseUrl(req){
   return `${proto}://${req.get('host')}`;
 }
 function generatePayosOrderCode(){
-  // 15 digits, still below Number.MAX_SAFE_INTEGER.
-  return Math.trunc(Date.now()*100+crypto.randomInt(0,100));
+  // Keep orderCode within signed 32-bit positive range. This mirrors the conservative
+  // integer-sized examples in official payOS SDKs and avoids provider/database edge cases.
+  return crypto.randomInt(100000000, 2147480000);
+}
+async function insertPendingOrder(userId, plan){
+  for(let attempt=0;attempt<6;attempt++){
+    const orderCode=generatePayosOrderCode();
+    const row={
+      user_id:userId,plan_id:plan.id,plan_name:plan.name,amount_vnd:plan.price_vnd,
+      direct_credits:plan.direct_credits,file_credits:plan.file_credits,history_credits:plan.history_credits,
+      payment_code:String(orderCode),payment_method:'payos'
+    };
+    const {data,error}=await supabaseAdmin.from('orders').insert(row).select('*').single();
+    if(!error)return {order:data,orderCode};
+    if(String(error.code||'')!=='23505')throw normalizeDatabaseError(error);
+  }
+  const e=new Error('Không tạo được mã đơn thanh toán duy nhất. Vui lòng thử lại.');
+  e.code='ORDER_CODE_COLLISION';e.status=503;throw e;
 }
 function paymentExpiry(){
   const minutes=Math.max(5,Math.min(1440,Number(process.env.PAYOS_PAYMENT_EXPIRY_MINUTES||30)));
@@ -214,28 +230,32 @@ app.get('/api/me',requireUser,async(req,res)=>{
 
 app.post('/api/orders',requireUser,async(req,res)=>{
   let insertedOrder=null;
+  const paymentErrorId=crypto.randomUUID().slice(0,8);
   try{
-    if(!payosConfigured)return res.status(503).json({code:'PAYOS_NOT_CONFIGURED',error:'Thanh toán tự động chưa được cấu hình. Quản trị viên cần thêm PAYOS_CLIENT_ID, PAYOS_API_KEY và PAYOS_CHECKSUM_KEY trên Vercel.'});
+    if(!payosConfigured)return res.status(503).json({
+      code:'PAYOS_NOT_CONFIGURED',
+      error:'Thanh toán payOS chưa được cấu hình đầy đủ. Quản trị viên cần kiểm tra PAYOS_CLIENT_ID, PAYOS_API_KEY và PAYOS_CHECKSUM_KEY trên Vercel rồi Redeploy.',
+      errorId:paymentErrorId
+    });
     const planId=String(req.body?.planId||'');
     const {data:plan,error}=await supabaseAdmin.from('plans').select('*').eq('id',planId).eq('active',true).maybeSingle();
-    if(error)throw error;if(!plan)return res.status(404).json({error:'Gói đăng ký không tồn tại hoặc đã ngừng bán.'});
+    if(error)throw normalizeDatabaseError(error);
+    if(!plan)return res.status(404).json({code:'PLAN_NOT_FOUND',error:'Gói đăng ký không tồn tại hoặc đã ngừng bán.',errorId:paymentErrorId});
 
-    const orderCode=generatePayosOrderCode();
-    const paymentCode=String(orderCode);
+    const created=await insertPendingOrder(req.user.id,plan);
+    insertedOrder=created.order;
+    const orderCode=created.orderCode;
     const description=buildPaymentDescription(orderCode);
     const expiresAt=paymentExpiry();
-    const row={user_id:req.user.id,plan_id:plan.id,plan_name:plan.name,amount_vnd:plan.price_vnd,direct_credits:plan.direct_credits,file_credits:plan.file_credits,history_credits:plan.history_credits,payment_code:paymentCode,payment_method:'payos'};
-    const {data,error:insertError}=await supabaseAdmin.from('orders').insert(row).select('*').single();
-    if(insertError)throw insertError; insertedOrder=data;
-
     const base=appBaseUrl(req);
+    const returnUrl=`${base}/?payment=success`;
+    const cancelUrl=`${base}/?payment=cancel`;
     const payment=await createPayosPayment({
-      orderCode,amount:plan.price_vnd,description,
-      buyerEmail:req.user.email||undefined,itemName:plan.name,expiredAt,
-      returnUrl:`${base}/?payment=success`,cancelUrl:`${base}/?payment=cancel`
+      orderCode,amount:plan.price_vnd,description,expiredAt,returnUrl,cancelUrl
     });
-    res.json({
-      order:data,
+
+    return res.json({
+      order:insertedOrder,
       payment:{
         provider:'payos',orderCode:Number(payment.orderCode||orderCode),paymentCode:description,
         amount:Number(payment.amount||plan.price_vnd),accountNumber:payment.accountNumber||'',accountName:payment.accountName||'',
@@ -244,8 +264,22 @@ app.post('/api/orders',requireUser,async(req,res)=>{
       }
     });
   }catch(e){
-    if(insertedOrder?.id){await supabaseAdmin.from('orders').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',insertedOrder.id).catch(()=>{});}
-    const n=normalizeDatabaseError(e);res.status(e.status||n.status||400).json({code:e.code||n.code||'ORDER_CREATE_FAILED',error:e.message||n.message||'Không tạo được đơn thanh toán.'});
+    // Do not mask the real payOS/database error with a cleanup error.
+    if(insertedOrder?.id){
+      try{
+        const {error:cleanupError}=await supabaseAdmin.from('orders')
+          .update({status:'cancelled',updated_at:new Date().toISOString()})
+          .eq('id',insertedOrder.id).eq('status','pending');
+        if(cleanupError)console.error(`[api/orders ${paymentErrorId}] cleanup failed`,cleanupError);
+      }catch(cleanupError){
+        console.error(`[api/orders ${paymentErrorId}] cleanup threw`,cleanupError);
+      }
+    }
+    const n=normalizeDatabaseError(e);
+    const code=e.code||n.code||'ORDER_CREATE_FAILED';
+    const message=e.message||n.message||'Không tạo được đơn thanh toán.';
+    console.error(`[api/orders ${paymentErrorId}]`,{code,message,providerStatus:e.providerStatus||null,providerCode:e.providerCode||null});
+    return res.status(e.status||n.status||400).json({code,error:message,errorId:paymentErrorId});
   }
 });
 
@@ -492,7 +526,8 @@ app.patch('/api/admin/users/:id/status',requireAdmin,async(req,res)=>{
 });
 app.get('/api/admin/payments/payos/status',requireAdmin,async(req,res)=>{
   const webhookUrl=`${appBaseUrl(req)}/api/payments/payos/webhook`;
-  res.json({configured:payosConfigured,webhookUrl,provider:'payos'});
+  const d=getPayosDiagnostics();
+  res.json({configured:payosConfigured,webhookUrl,provider:'payos',diagnostics:{...d,appUrl:appBaseUrl(req)}});
 });
 app.post('/api/admin/payments/payos/confirm-webhook',requireAdmin,async(req,res)=>{
   try{
@@ -536,10 +571,11 @@ app.post('/api/admin/orders/:id/approve',requireAdmin,async(req,res)=>{
 
 app.use((error,req,res,next)=>{
   if(!req.path.startsWith('/api/'))return next(error);
-  console.error('[api/unhandled]',error);
+  const errorId=crypto.randomUUID().slice(0,8);
+  console.error(`[api/unhandled ${errorId}]`,error);
   return res.status(error?.status||500).json({
-    code:error?.code||'INTERNAL_ERROR',
-    error:'Máy chủ gặp lỗi khi xử lý yêu cầu. Nếu đây là thao tác đọc hồ sơ và lượt đã bị trừ, hệ thống sẽ hoàn lượt khi yêu cầu đã vào phiên xử lý.'
+    code:error?.code||'INTERNAL_ERROR',errorId,
+    error:'Máy chủ gặp lỗi khi xử lý yêu cầu. Vui lòng gửi mã lỗi này cho quản trị viên để tra trong Vercel Logs.'
   });
 });
 

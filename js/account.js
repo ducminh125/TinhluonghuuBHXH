@@ -173,12 +173,22 @@ function startPaymentPolling(orderId){
 async function createOrder(planId){
   if(!session)return openAuth();
   setMessage('planMessage','','');
+  const buttons=[...document.querySelectorAll('.buy-plan')];
+  buttons.forEach(b=>b.disabled=true);
   try{
+    setMessage('planMessage','info','Đang tạo mã QR thanh toán…');
     const data=await jsonResponse(await authorizedFetch('/api/orders',{method:'POST',body:JSON.stringify({planId})}));
-    if(!data.payment?.qrCode)throw new Error('Nhà cung cấp thanh toán chưa trả về mã QR. Vui lòng thử lại.');
+    if(!data.payment?.qrCode)throw Object.assign(new Error('Nhà cung cấp thanh toán chưa trả về mã QR. Vui lòng thử lại.'),{code:'PAYOS_NO_QR'});
+    setMessage('planMessage','','');
     await renderPayment(data.order,data.payment);
     await loadOrders();
-  }catch(e){setMessage('planMessage','error',e.message||'Không tạo được đơn thanh toán.');}
+  }catch(e){
+    const errorId=e?.data?.errorId||'';
+    const suffix=errorId?` · Mã lỗi: ${errorId}`:'';
+    setMessage('planMessage','error',`${e.message||'Không tạo được đơn thanh toán.'}${suffix}`);
+  }finally{
+    buttons.forEach(b=>b.disabled=false);
+  }
 }
 async function loadOrders(){
   if(!session)return;const host=$('orderList');if(!host)return;

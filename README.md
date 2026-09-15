@@ -1,8 +1,8 @@
-# VN Pension Calculator v3.3 — QR payOS và tự động xác nhận thanh toán
+# VN Pension Calculator v3.4 — QR payOS và tự động xác nhận thanh toán
 
-Bản v3.3 bổ sung luồng thương mại hoàn chỉnh: **chọn gói → tạo QR VietQR động → thanh toán → webhook xác minh → tự cộng lượt**. QR do payOS tạo theo từng đơn, chứa sẵn số tiền, tài khoản nhận và nội dung chuyển khoản.
+Bản v3.4 bổ sung luồng thương mại hoàn chỉnh: **chọn gói → tạo QR VietQR động → thanh toán → webhook xác minh → tự cộng lượt**. QR do payOS tạo theo từng đơn, chứa sẵn số tiền, tài khoản nhận và nội dung chuyển khoản.
 
-## Thanh toán v3.3
+## Thanh toán v3.4
 
 ### Biến môi trường
 
@@ -33,7 +33,7 @@ Webhook không tin vào `returnUrl`; return URL chỉ phục vụ giao diện. X
 
 ### Migration production
 
-Chạy `supabase/migration-v3.3.sql` để thêm RPC `confirm_paid_order`, giúp cập nhật đơn và cộng lượt trong cùng transaction. Code có fallback tương thích schema cũ, nhưng production nên chạy migration.
+Chạy `supabase/migration-v3.4.sql` để thêm RPC `confirm_paid_order`, giúp cập nhật đơn và cộng lượt trong cùng transaction. Code có fallback tương thích schema cũ, nhưng production nên chạy migration.
 
 ### Admin
 
@@ -385,3 +385,8 @@ vn-pension-calculator-v3/
 - Supabase Auth: https://supabase.com/docs/guides/auth
 - Supabase Google login: https://supabase.com/docs/guides/auth/social-login/auth-google
 - Supabase admin users: https://supabase.com/docs/reference/javascript/auth-admin-listusers
+
+
+## Sửa lỗi payOS v3.4
+
+Nếu chọn gói nhưng không tạo được QR, bản v3.4 trả lỗi payOS cụ thể và `errorId` thay cho HTTP 500 chung. Kiểm tra `/api/health`, sau đó đăng nhập `/admin` và bấm **Đăng ký / cập nhật Webhook** để kiểm tra kết nối thật. Xem `DEPLOY-V3.4.md`.
