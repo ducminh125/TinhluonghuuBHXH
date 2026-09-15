@@ -175,7 +175,7 @@ export async function extractBhxhWithAI({text,images=[],filename='hồ sơ',pars
   const apiKey=process.env.SHOPAIKEY_API_KEY;
   if(!apiKey)throw new Error('Server chưa cấu hình API key trích xuất hồ sơ.');
 
-  const fastModel=process.env.SHOPAIKEY_FAST_MODEL || 'gemini-3-flash-preview';
+  const fastModel=process.env.SHOPAIKEY_FAST_MODEL || 'gemini-2.5-flash';
   const fallbackModel=process.env.SHOPAIKEY_FALLBACK_MODEL || 'gpt-5.6-luna';
   const fastTimeout=Number(process.env.AI_FAST_TIMEOUT_MS || 45000);
   const fallbackTimeout=Number(process.env.AI_FALLBACK_TIMEOUT_MS || 45000);

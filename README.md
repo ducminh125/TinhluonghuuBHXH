@@ -1,16 +1,29 @@
-# VN Pension Calculator v3.1 — tài khoản và thương mại hóa
+# VN Pension Calculator v3.2 — sửa luồng đọc hồ sơ và hoàn lượt
 
 Web ước tính lương hưu Việt Nam theo Luật BHXH 2024, có hệ thống tài khoản, hạn mức sử dụng, lịch sử, gói trả phí và trang quản trị. Người dùng có thể nhập quá trình đóng trực tiếp hoặc nhập từ ảnh/PDF/Word/Excel. Phép tính cuối cùng được thực hiện bởi **engine quy tắc trong source code**, không giao cho mô hình AI tự quyết định số tiền lương hưu.
 
 > Đây là công cụ tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH và văn bản có hiệu lực tại thời điểm giải quyết chế độ.
 
-## Cập nhật bắt buộc khi nâng từ v3.0 lên v3.1
+## Cập nhật từ v3.1 lên v3.2
 
-1. Supabase → **SQL Editor** → chạy toàn bộ `supabase/migration-v3.1.sql`. File này tạo/bổ sung `profiles`, `wallets`, `plans`, `orders`, `calculation_history`... và seed 3 gói mẫu. Cuối migration có lệnh reload PostgREST schema cache để xử lý lỗi `Could not find the table 'public.plans' in the schema cache`.
-2. Vercel → Project → Settings → Environment Variables → thêm `ADMIN_EMAILS=email-quan-tri-cua-ban`. Sau đó Redeploy.
-3. Supabase → Authentication → URL Configuration: Site URL = URL production; thêm `https://tinhluonghuu-bhxh.vercel.app/auth/confirmed` vào Redirect URLs.
-4. Supabase → Authentication → Providers: bật Email và Google nếu dùng; **tắt Phone**.
-5. Tài khoản cũ thiếu ví/profile sẽ được server tự backfill khi đăng nhập lại.
+Bản v3.2 **không bắt buộc chạy thêm SQL** nếu database v3.1.2 hiện tại đã có các bảng/hàm cơ bản (`wallets`, `import_jobs`, `consume_credit`, `refund_credit`). Chỉ cần cập nhật source và Redeploy Vercel.
+
+Các thay đổi chính:
+
+1. **Không trừ lượt hồ sơ khi vừa bấm đọc.** Server chỉ trừ 01 lượt sau khi đã nhận diện được ít nhất một giai đoạn BHXH hợp lệ. Lỗi parser/AI/timeout trước thời điểm đó không làm giảm số lượt.
+2. Nếu lỗi kỹ thuật xảy ra sau khi đã trừ lượt, backend tự gọi hoàn 01 lượt và frontend tải lại số dư ngay.
+3. Lỗi upload của `multer` được trả về JSON rõ ràng thay vì HTML `HTTP 500`.
+4. Trên Vercel, `/api/config` trả giới hạn upload trực tiếp khoảng 4 MB để trình duyệt chặn trước những request chắc chắn vượt giới hạn 4,5 MB của Vercel Functions; request bị chặn trước không trừ lượt.
+5. Model ảnh/PDF mặc định đổi sang `gemini-2.5-flash`, là model được tài liệu ShopAIKey nêu rõ cho Gemini native/vision; fallback vẫn là `gpt-5.6-luna`.
+6. Mỗi lỗi import có `errorId` để tra trong Vercel Logs.
+
+File `supabase/migration-v3.2.sql` là **tùy chọn tăng cứng**: thêm cơ chế charge/refund idempotent theo từng `import_job`. Nếu bạn chưa muốn thao tác SQL thêm, code vẫn tự tương thích với `consume_credit` / `refund_credit` của v3.1.2.
+
+### Cập nhật bắt buộc từ v3.0/v3.1 cũ nếu database chưa hoàn chỉnh
+
+- Supabase phải có schema v3.1.2 (các bảng `profiles`, `wallets`, `plans`, `orders`, `usage_events`, `calculation_history`, `import_jobs`, `admin_audit_logs`).
+- Vercel cần `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SHOPAIKEY_API_KEY`, `ADMIN_EMAILS`.
+- Authentication dùng Email/Google; Phone đã bỏ.
 
 
 ## 1. Điểm mới của v3
@@ -91,11 +104,11 @@ Với file Excel BHXH dạng bảng có các cột như `Từ tháng`, `Đến t
 ### Model mặc định
 
 ```env
-SHOPAIKEY_FAST_MODEL=gemini-3-flash-preview
+SHOPAIKEY_FAST_MODEL=gemini-2.5-flash
 SHOPAIKEY_FALLBACK_MODEL=gpt-5.6-luna
 ```
 
-- `gemini-3-flash-preview`: tuyến ưu tiên cho ảnh/PDF scan vì mục tiêu của dòng Flash là tốc độ/multimodal;
+- `gemini-2.5-flash`: tuyến ưu tiên cho ảnh/PDF scan vì mục tiêu của dòng Flash là tốc độ/multimodal;
 - `gpt-5.6-luna`: fallback theo chuẩn OpenAI-compatible, nhẹ và rẻ hơn Terra theo bảng giá gateway tại thời điểm xây dựng;
 - `gpt-5.6-terra`: không dùng mặc định; có thể cấu hình làm tuyến escalation riêng nếu sau này cần xử lý hồ sơ rất khó.
 
@@ -112,10 +125,12 @@ Không nên cam kết một số giây cố định cho AI vì độ trễ còn 
 ### Nhập hồ sơ
 
 1. Người dùng tải file.
-2. Server trừ **01 file credit** trước khi xử lý.
-3. Nếu import lỗi → tự hoàn **01 file credit**.
-4. Import thành công tạo `import_job`.
-5. Một `import_job` được dùng cho một phép tính hồ sơ; reload cùng input có thể trả cached result, không trừ thêm.
+2. Server tạo `import_job` nhưng **chưa trừ lượt**.
+3. Parser/AI đọc, chuẩn hóa và kiểm tra dữ liệu.
+4. Nếu không có giai đoạn hợp lệ hoặc có lỗi parser/AI/timeout → import thất bại và **không trừ lượt**.
+5. Khi đã có ít nhất một giai đoạn hợp lệ → server mới trừ **01 file credit**.
+6. Nếu một lỗi kỹ thuật hiếm xảy ra sau bước trừ lượt nhưng trước khi trả kết quả → backend tự hoàn **01 file credit**; frontend refresh số dư và thông báo rõ đã hoàn.
+7. Một `import_job` thành công được dùng cho một phép tính hồ sơ; reload cùng input có thể trả cached result, không trừ thêm.
 
 ### Lưu lịch sử
 
@@ -176,7 +191,7 @@ Sao chép `.env.example` thành `.env`:
 ```env
 SHOPAIKEY_API_KEY=...
 SHOPAIKEY_BASE_URL=https://api.shopaikey.com/v1
-SHOPAIKEY_FAST_MODEL=gemini-3-flash-preview
+SHOPAIKEY_FAST_MODEL=gemini-2.5-flash
 SHOPAIKEY_FALLBACK_MODEL=gpt-5.6-luna
 AI_FAST_TIMEOUT_MS=45000
 AI_FALLBACK_TIMEOUT_MS=45000

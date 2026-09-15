@@ -16,7 +16,8 @@ import {
   requireAdmin,
   getWallet,
   consumeCredit,
-  refundCredit,
+  consumeImportCredit,
+  refundImportCreditOnce,
   normalizeDatabaseError,
   databaseStatus
 } from './supabase.js';
@@ -29,6 +30,7 @@ const port=Number(process.env.PORT||3000);
 const MAX_TOTAL_UPLOAD=60*1024*1024;
 
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:12*1024*1024,files:20}});
+const importUpload=upload.fields([{name:'files',maxCount:20},{name:'file',maxCount:1}]);
 
 app.disable('x-powered-by');
 app.use(express.json({limit:'3mb'}));
@@ -172,10 +174,11 @@ app.get('/api/config',(_req,res)=>{
   const supa=publicSupabaseConfig();
   res.json({
     authEnabled:Boolean(supabaseConfigured&&supa.publishableKey),supabaseUrl:supa.url,supabasePublishableKey:supa.publishableKey,
-    freeQuota:{direct:3,file:0,history:3},bank:bankConfig()
+    freeQuota:{direct:3,file:0,history:3},bank:bankConfig(),
+    maxDirectUploadBytes:process.env.VERCEL==='1'?4*1024*1024:MAX_TOTAL_UPLOAD
   });
 });
-app.get('/api/health',(_req,res)=>res.json({ok:true,authConfigured:supabaseConfigured,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-3-flash-preview',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'}));
+app.get('/api/health',(_req,res)=>res.json({ok:true,authConfigured:supabaseConfigured,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'}));
 app.get('/api/system/status',async(_req,res)=>{
   try{res.json(await databaseStatus());}
   catch(e){sendDbError(res,e,'Không kiểm tra được cơ sở dữ liệu.');}
@@ -250,18 +253,56 @@ app.post('/api/calculate',requireUser,async(req,res)=>{
   }catch(e){res.status(e.code==='NO_CREDIT'?402:(e.status||400)).json({error:e.message||'Không thể tính lương hưu.',details:e.details});}
 });
 
-app.post('/api/import',requireUser,upload.fields([{name:'files',maxCount:20},{name:'file',maxCount:1}]),async(req,res)=>{
-  const start=Date.now(); let creditConsumed=false; let jobId=null;
+function runImportUpload(req,res,next){
+  importUpload(req,res,error=>{
+    if(!error)return next();
+    console.warn('[api/import upload]',error?.code||error?.message||error);
+    if(error instanceof multer.MulterError){
+      const messages={
+        LIMIT_FILE_SIZE:'Một tệp vượt giới hạn 12 MB. Hãy giảm dung lượng hoặc chia hồ sơ thành nhiều tệp nhỏ hơn.',
+        LIMIT_FILE_COUNT:'Số tệp vượt giới hạn cho phép.',
+        LIMIT_UNEXPECTED_FILE:'Số tệp vượt giới hạn 20 tệp mỗi lần đọc.'
+      };
+      return res.status(413).json({
+        code:error.code||'UPLOAD_LIMIT',
+        error:messages[error.code]||'Tệp tải lên vượt giới hạn cho phép.',
+        refunded:false,
+        charged:false
+      });
+    }
+    return res.status(400).json({code:'UPLOAD_FAILED',error:error?.message||'Không nhận được tệp tải lên.',refunded:false,charged:false});
+  });
+}
+
+function publicImportError(error){
+  const raw=String(error?.message||error||'');
+  if(error?.code==='NO_CREDIT')return {status:402,code:'NO_CREDIT',message:raw};
+  if(error?.code==='DATABASE_SETUP_REQUIRED')return {status:503,code:'DATABASE_SETUP_REQUIRED',message:raw};
+  if(error?.code==='NO_IMPORTABLE_DATA')return {status:422,code:'NO_IMPORTABLE_DATA',message:raw};
+  if(error?.name==='AbortError'||/timeout|time.?out|hết thời gian/i.test(raw))return {status:504,code:'IMPORT_TIMEOUT',message:'Dịch vụ đọc hồ sơ quá thời gian xử lý. Lượt hồ sơ sẽ được tự động hoàn lại.'};
+  if(/API key|chưa cấu hình/i.test(raw))return {status:503,code:'AI_NOT_CONFIGURED',message:'Dịch vụ đọc hồ sơ chưa được cấu hình đầy đủ. Lượt hồ sơ sẽ được tự động hoàn lại.'};
+  if(/HTTP 401|HTTP 403|unauthorized|forbidden|invalid.*key/i.test(raw))return {status:502,code:'AI_AUTH_FAILED',message:'Dịch vụ đọc hồ sơ từ chối xác thực. Quản trị viên cần kiểm tra API key. Lượt hồ sơ sẽ được tự động hoàn lại.'};
+  if(/HTTP 429|rate limit|too many requests/i.test(raw))return {status:503,code:'AI_RATE_LIMIT',message:'Dịch vụ đọc hồ sơ đang quá tải. Vui lòng thử lại sau; lượt hồ sơ sẽ được tự động hoàn lại.'};
+  return {status:400,code:error?.code||'IMPORT_FAILED',message:raw||'Không thể xử lý tệp. Lượt hồ sơ sẽ được tự động hoàn lại.'};
+}
+
+app.post('/api/import',requireUser,runImportUpload,async(req,res)=>{
+  const start=Date.now(); let creditConsumed=false; let jobId=null; let refund=null;
+  const errorId=crypto.randomUUID();
   try{
     const files=[...(req.files?.files||[]),...(req.files?.file||[])];
-    if(!files.length)return res.status(400).json({error:'Chưa nhận được tệp tải lên.'});
+    if(!files.length)return res.status(400).json({code:'NO_FILE',error:'Chưa nhận được tệp tải lên.',charged:false,refunded:false});
     const totalSize=files.reduce((sum,f)=>sum+Number(f.size||f.buffer?.length||0),0);
-    if(totalSize>MAX_TOTAL_UPLOAD)return res.status(400).json({error:'Tổng dung lượng các tệp vượt 60 MB. Hãy chia thành nhiều lần import.'});
+    if(totalSize>MAX_TOTAL_UPLOAD)return res.status(413).json({code:'UPLOAD_TOO_LARGE',error:'Tổng dung lượng các tệp vượt giới hạn xử lý của máy chủ.',charged:false,refunded:false});
 
-    await consumeCredit(req.user.id,'file','file_import_started',{sourceCount:files.length}); creditConsumed=true;
-    const {data:newJob,error:jobError}=await supabaseAdmin.from('import_jobs').insert({user_id:req.user.id,status:'processing',source_count:files.length}).select('id').single();
-    if(jobError)throw jobError; jobId=newJob.id;
+    // Create an import job for traceability. Charging happens only after useful data is extracted.
+    const {data:newJob,error:jobError}=await supabaseAdmin.from('import_jobs').insert({
+      user_id:req.user.id,status:'processing',source_count:files.length,meta:{errorId}
+    }).select('id').single();
+    if(jobError)throw jobError;
+    jobId=newJob.id;
 
+    // Do not charge yet. File/AI parsing errors must never consume a credit.
     const parsedFiles=await Promise.all(files.map(async file=>({file,parsed:await parseUploadedFile(file)})));
     const payloads=[];
     for(const item of parsedFiles)if(item.parsed.structured)payloads.push(item.parsed.structured);
@@ -273,18 +314,48 @@ app.post('/api/import',requireUser,upload.fields([{name:'files',maxCount:20},{na
       payloads.push(...extractedBatches);
     }
     const extracted=mergeImportPayloads(payloads,files.length);
+    if(!Array.isArray(extracted.periods)||extracted.periods.length===0){
+      const e=new Error('Không nhận diện được giai đoạn đóng BHXH nào đủ dữ liệu để tự động điền. Hãy kiểm tra độ rõ của hồ sơ hoặc thử tệp khác.');
+      e.code='NO_IMPORTABLE_DATA';
+      throw e;
+    }
     extracted.meta.latencyMs=Date.now()-start;
+
+    // Charge only after useful data has been extracted successfully.
+    // The RPC is idempotent and atomically records the charge against this import job.
+    await consumeImportCredit(req.user.id,jobId,files.length);
+    creditConsumed=true;
+
     const pHash=periodHash(extracted.periods);
-    const {error:updateError}=await supabaseAdmin.from('import_jobs').update({status:'success',provider:extracted.meta.provider,model:extracted.meta.model,parser_mode:extracted.meta.parserMode,latency_ms:extracted.meta.latencyMs,period_hash:pHash,meta:extracted.meta,updated_at:new Date().toISOString()}).eq('id',jobId);
+    const jobMeta={...extracted.meta,errorId};
+    const {error:updateError}=await supabaseAdmin.from('import_jobs').update({
+      status:'success',provider:extracted.meta.provider,model:extracted.meta.model,parser_mode:extracted.meta.parserMode,
+      latency_ms:extracted.meta.latencyMs,period_hash:pHash,meta:jobMeta,updated_at:new Date().toISOString()
+    }).eq('id',jobId);
     if(updateError)throw updateError;
     extracted.meta.importJobId=jobId;
     extracted.meta.wallet=await getWallet(req.user.id);
-    res.json(extracted);
+    extracted.meta.errorId=errorId;
+    return res.json(extracted);
   }catch(error){
-    console.error('[api/import]',error);
-    if(jobId)await supabaseAdmin.from('import_jobs').update({status:'failed',latency_ms:Date.now()-start,meta:{error:error?.message||String(error)},updated_at:new Date().toISOString()}).eq('id',jobId).catch(()=>{});
-    if(creditConsumed)await refundCredit(req.user.id,'file','file_import_refund',{reason:error?.message||'import_failed',jobId}).catch(()=>{});
-    res.status(error.code==='NO_CREDIT'?402:400).json({error:error?.message||'Không thể xử lý tệp.'});
+    console.error(`[api/import ${errorId}]`,error);
+    const publicError=publicImportError(error);
+    if(jobId){
+      await supabaseAdmin.from('import_jobs').update({
+        status:'failed',latency_ms:Date.now()-start,
+        meta:{errorId,code:publicError.code,error:error?.message||String(error)},updated_at:new Date().toISOString()
+      }).eq('id',jobId).catch(()=>{});
+    }
+    if(creditConsumed&&jobId){
+      try{refund=await refundImportCreditOnce(req.user.id,jobId,error?.message||publicError.code);}
+      catch(refundError){console.error(`[api/import ${errorId}] refund failed`,refundError);}
+    }
+    let wallet=refund?.wallet||null;
+    if(!wallet){try{wallet=await getWallet(req.user.id);}catch{}}
+    return res.status(publicError.status).json({
+      code:publicError.code,error:publicError.message,errorId,
+      charged:creditConsumed,refunded:Boolean(refund?.refunded),refundOutcome:refund?.outcome||null,wallet
+    });
   }
 });
 
@@ -355,6 +426,15 @@ app.post('/api/admin/orders/:id/approve',requireAdmin,async(req,res)=>{
   const {data,error}=await supabaseAdmin.rpc('approve_order',{p_order_id:req.params.id,p_admin_id:req.user.id});if(error)return res.status(400).json({error:error.message});res.json({order:Array.isArray(data)?data[0]:data});
 });
 
+app.use((error,req,res,next)=>{
+  if(!req.path.startsWith('/api/'))return next(error);
+  console.error('[api/unhandled]',error);
+  return res.status(error?.status||500).json({
+    code:error?.code||'INTERNAL_ERROR',
+    error:'Máy chủ gặp lỗi khi xử lý yêu cầu. Nếu đây là thao tác đọc hồ sơ và lượt đã bị trừ, hệ thống sẽ hoàn lượt khi yêu cầu đã vào phiên xử lý.'
+  });
+});
+
 app.use((_req,res)=>res.sendFile(path.join(rootDir,'index.html')));
-if(process.env.VERCEL!=='1')app.listen(port,()=>console.log(`VN Pension Calculator v3: http://localhost:${port}`));
+if(process.env.VERCEL!=='1')app.listen(port,()=>console.log(`VN Pension Calculator v3.2: http://localhost:${port}`));
 export default app;

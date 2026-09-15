@@ -566,6 +566,14 @@ $("importAiBtn").addEventListener("click", async () => {
     return;
   }
 
+  const maxUploadBytes = Number(window.PensionAccount?.config?.maxDirectUploadBytes || 0);
+  const totalUploadBytes = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
+  if (maxUploadBytes > 0 && totalUploadBytes > maxUploadBytes) {
+    const mb = (maxUploadBytes / 1024 / 1024).toFixed(1).replace(".0", "");
+    setImportStatus("error", `<strong>Chưa gửi hồ sơ nên chưa bị trừ lượt.</strong> Tổng dung lượng ${files.length} tệp vượt giới hạn khoảng ${mb} MB của máy chủ hiện tại. Hãy giảm dung lượng ảnh/PDF hoặc chia thành lần đọc nhỏ hơn.`);
+    return;
+  }
+
   const btn = $("importAiBtn");
   const fileInput = $("historyFiles");
   btn.disabled = true;
@@ -586,10 +594,19 @@ $("importAiBtn").addEventListener("click", async () => {
       ? window.PensionAccount.authorizedFetch("/api/import", { method: "POST", body })
       : fetch("/api/import", { method: "POST", body });
     const response = await request;
-    const payload = await response.json().catch(() => ({}));
+    const rawBody = await response.text().catch(() => "");
+    let payload = {};
+    try { payload = rawBody ? JSON.parse(rawBody) : {}; } catch { payload = {}; }
     if (!response.ok) {
-      const err = new Error(payload.error || `HTTP ${response.status}`);
+      let message = payload.error || `HTTP ${response.status}`;
+      if (response.status === 413) {
+        message = "Tổng dung lượng gửi lên vượt giới hạn của Vercel Function (4,5 MB mỗi request). Hãy giảm dung lượng ảnh/PDF hoặc chia hồ sơ thành các tệp nhỏ hơn. Yêu cầu bị chặn trước khi xử lý sẽ không bị trừ lượt.";
+      } else if (response.status >= 500 && !payload.error) {
+        message = "Máy chủ gặp lỗi trước khi trả kết quả. Hãy thử lại; nếu lượt hồ sơ đã bị trừ sau khi phiên xử lý được tạo, hệ thống sẽ tự hoàn lượt.";
+      }
+      const err = new Error(message);
       err.status = response.status;
+      err.payload = payload;
       throw err;
     }
 
@@ -621,7 +638,16 @@ $("importAiBtn").addEventListener("click", async () => {
     const extra = location.protocol === "file:" || ["github.io"].some(x => location.hostname.endsWith(x))
       ? " Chức năng đọc hồ sơ cần chạy bằng backend Node/Vercel để giữ bí mật API key."
       : "";
-    setImportStatus("error", `<strong>Không đọc được hồ sơ:</strong> ${escapeHtml(error.message)}.${extra}`);
+    const refundText = error.payload?.refunded
+      ? " <strong>Lượt đọc hồ sơ đã được tự động hoàn lại tài khoản.</strong>"
+      : (error.payload?.charged && error.payload?.refundOutcome === "already_refunded"
+          ? " <strong>Lượt đọc hồ sơ đã được hoàn lại trước đó.</strong>"
+          : (error.payload?.charged === false
+              ? " <strong>Lượt đọc hồ sơ chưa bị trừ.</strong>"
+              : ""));
+    const errorIdText = error.payload?.errorId ? ` Mã lỗi: <code>${escapeHtml(error.payload.errorId)}</code>.` : "";
+    setImportStatus("error", `<strong>Không đọc được hồ sơ:</strong> ${escapeHtml(error.message)}.${refundText}${errorIdText}${extra}`);
+    try { await window.PensionAccount?.refreshMe?.(); } catch {}
     if (error.status === 402) window.PensionAccount?.openPlans?.();
   } finally {
     stopImportProgress();

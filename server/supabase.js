@@ -37,7 +37,7 @@ export function normalizeDatabaseError(error) {
   const missing = code === '42P01' || code === 'PGRST205' || code === 'PGRST202' ||
     /schema cache|could not find the table|could not find the function|relation .* does not exist/i.test(message);
   if (!missing) return error;
-  const e = new Error('Cơ sở dữ liệu của ứng dụng chưa được cài đặt hoặc chưa cập nhật lên v3.1. Quản trị viên cần chạy file supabase/migration-v3.1.sql trong Supabase SQL Editor.');
+  const e = new Error('Cơ sở dữ liệu của ứng dụng chưa được cài đặt đầy đủ. Hãy kiểm tra migration v3.1.2 trong Supabase; bản v3.2 có thể chạy tương thích mà không bắt buộc migration bổ sung.');
   e.code = 'DATABASE_SETUP_REQUIRED';
   e.status = 503;
   e.original = error;
@@ -105,7 +105,7 @@ export async function databaseStatus() {
     if (error && normalizeDatabaseError(error)?.code === 'DATABASE_SETUP_REQUIRED') missing.push(table);
     else if (error) missing.push(`${table} (${error.code || 'error'})`);
   }
-  return { configured: true, ready: missing.length === 0, missing, schemaVersion: missing.length ? null : '3.1' };
+  return { configured: true, ready: missing.length === 0, missing, schemaVersion: missing.length ? null : '3.1.2-compatible' };
 }
 
 export async function requireUser(req, res, next) {
@@ -156,6 +156,51 @@ export async function consumeCredit(userId, bucket, action, metadata = {}) {
     throw error;
   }
   return Array.isArray(data) ? data[0] : data;
+}
+
+
+export async function consumeImportCredit(userId, jobId, sourceCount = 1) {
+  const { data, error } = await supabaseAdmin.rpc('consume_import_credit_once', {
+    p_user_id: userId,
+    p_job_id: jobId,
+    p_source_count: Math.max(1, Number(sourceCount || 1))
+  });
+  if (!error) return Array.isArray(data) ? data[0] : data;
+
+  // v3.2 hardening migration is optional. Fall back to the existing v3.1 credit RPC.
+  const normalized = normalizeDatabaseError(error);
+  const missingNewRpc = normalized?.code === 'DATABASE_SETUP_REQUIRED' || error?.code === 'PGRST202' || /consume_import_credit_once/i.test(error?.message || '');
+  if (missingNewRpc) {
+    return consumeCredit(userId, 'file', 'file_import_started', {
+      jobId, sourceCount: Math.max(1, Number(sourceCount || 1)), compatibilityMode: 'v3.1'
+    });
+  }
+  if (/NO_CREDIT/i.test(error.message || '')) {
+    const e = new Error('Không còn lượt đọc hồ sơ. Vui lòng mua thêm gói.');
+    e.code = 'NO_CREDIT';
+    throw e;
+  }
+  throw error;
+}
+
+export async function refundImportCreditOnce(userId, jobId, reason = 'import_failed') {
+  const { data, error } = await supabaseAdmin.rpc('refund_import_credit_once', {
+    p_user_id: userId,
+    p_job_id: jobId,
+    p_reason: String(reason || 'import_failed').slice(0, 500)
+  });
+  if (!error) return data || { refunded: false, outcome: 'unknown', wallet: null };
+
+  // Compatibility fallback for existing v3.1 databases: one request can enter this branch only once.
+  const normalized = normalizeDatabaseError(error);
+  const missingNewRpc = normalized?.code === 'DATABASE_SETUP_REQUIRED' || error?.code === 'PGRST202' || /refund_import_credit_once/i.test(error?.message || '');
+  if (missingNewRpc) {
+    const wallet = await refundCredit(userId, 'file', 'file_import_refund', {
+      jobId, reason: String(reason || 'import_failed').slice(0, 500), compatibilityMode: 'v3.1'
+    });
+    return { refunded: true, outcome: 'legacy_refund', wallet };
+  }
+  throw error;
 }
 
 export async function refundCredit(userId, bucket, action, metadata = {}) {
