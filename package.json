@@ -1,6 +1,6 @@
 {
   "name": "vn-pension-calculator",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "private": true,
   "type": "module",
   "description": "Vietnam pension calculator based on contribution history, allowances, multi-file AI extraction, and retirement projections.",

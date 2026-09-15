@@ -246,7 +246,7 @@ app.post('/api/orders',requireUser,async(req,res)=>{
     insertedOrder=created.order;
     const orderCode=created.orderCode;
     const description=buildPaymentDescription(orderCode);
-    const expiresAt=paymentExpiry();
+    const expiredAt=paymentExpiry();
     const base=appBaseUrl(req);
     const returnUrl=`${base}/?payment=success`;
     const cancelUrl=`${base}/?payment=cancel`;
@@ -260,7 +260,7 @@ app.post('/api/orders',requireUser,async(req,res)=>{
         provider:'payos',orderCode:Number(payment.orderCode||orderCode),paymentCode:description,
         amount:Number(payment.amount||plan.price_vnd),accountNumber:payment.accountNumber||'',accountName:payment.accountName||'',
         bankName:process.env.PAYMENT_BANK_NAME||'',bin:payment.bin||'',description:payment.description||description,
-        checkoutUrl:payment.checkoutUrl||'',qrCode:payment.qrCode||'',paymentLinkId:payment.paymentLinkId||'',expiresAt
+        checkoutUrl:payment.checkoutUrl||'',qrCode:payment.qrCode||'',paymentLinkId:payment.paymentLinkId||'',expiresAt:expiredAt
       }
     });
   }catch(e){
