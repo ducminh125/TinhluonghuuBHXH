@@ -1,253 +1,115 @@
-# VN Pension Calculator v3.6 — VietQR hiển thị trực tiếp + tự động xác nhận thanh toán
+# VN Social Insurance Benefits Calculator v3.7
 
-## Cập nhật v3.6
+Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
+- lương hưu;
+- BHXH một lần;
+- trợ cấp thất nghiệp;
+- chế độ thai sản.
 
-- Popup VietQR co giãn và cuộn trong nền modal, không để nội dung tràn khỏi popup.
-- Có trạng thái chờ xác nhận giao dịch và trạng thái hoàn tất/hủy.
-- Lịch sử có thể tra cứu chi tiết lại toàn bộ dữ liệu đã lưu và kết quả chính.
-- Nhãn lượt sử dụng đổi thành: nhập thủ công, nhập bằng file/ảnh tự động, lưu lịch sử.
+Hệ thống dùng Supabase cho tài khoản/database, payOS cho VietQR + webhook thanh toán, và ShopAIKey chỉ cho hồ sơ ảnh/PDF cần model. Phép tính quyền lợi do engine quy tắc trong source thực hiện, không giao cho AI tự quyết định số tiền.
 
+> Kết quả là tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH, hồ sơ thực tế và văn bản có hiệu lực tại thời điểm giải quyết.
 
-Bản v3.5 gồm luồng thương mại hoàn chỉnh: **chọn gói → tạo QR VietQR động → thanh toán → webhook xác minh → tự cộng lượt**. QR do payOS tạo theo từng đơn, chứa sẵn số tiền, tài khoản nhận và nội dung chuyển khoản.
+## 1. Các tab tính v3.7
 
-## Thanh toán v3.5
+### Lương hưu
+Giữ toàn bộ engine v3.6: tuổi nghỉ hưu, quá trình đóng, phụ cấp tính đóng, mức bình quân, tỷ lệ hưởng, dự báo đến nghỉ hưu và trường hợp nghỉ trước tuổi.
 
-### Biến môi trường
+### BHXH một lần
+Dùng **chính quá trình đóng BHXH đã nhập/đọc file**. Công thức chính:
+- trước 2014: 1,5 tháng mức bình quân/năm;
+- từ 2014: 2 tháng mức bình quân/năm;
+- tháng lẻ trước 2014 chuyển sang giai đoạn từ 2014 nếu có cả hai giai đoạn;
+- dưới 1 năm: cần tổng tiền đã đóng thực tế, tối đa 2 tháng mức bình quân.
 
-```env
-APP_URL=https://tinhluonghuu-bhxh.vercel.app
-PAYOS_CLIENT_ID=...
-PAYOS_API_KEY=...
-PAYOS_CHECKSUM_KEY=...
-PAYMENT_BANK_NAME=VCB
-PAYOS_PAYMENT_EXPIRY_MINUTES=30
-```
+Nếu có thời gian BHXH tự nguyện, công cụ cảnh báo phần hỗ trợ của ngân sách cần được loại khỏi mức hưởng, trừ trường hợp pháp luật cho phép.
 
-### Luồng
+### Trợ cấp thất nghiệp
+Tab này mô hình hóa Luật Việc làm 2025 **cho trường hợp từ 01/01/2026**:
+- 60% bình quân tiền lương đóng BHTN 6 tháng gần nhất;
+- tối đa 5 lần lương tối thiểu vùng;
+- 12–36 tháng đóng = 3 tháng hưởng; cứ thêm đủ 12 tháng = +1 tháng; tối đa 12 tháng.
 
-```text
-Khách chọn gói
-→ backend tạo order pending
-→ gọi payOS tạo payment request
-→ frontend hiển thị QR + số tiền + tài khoản + mã thanh toán
-→ ngân hàng ghi nhận chuyển khoản
-→ payOS gọi /api/payments/payos/webhook
-→ backend kiểm tra HMAC + orderCode + amount + description
-→ confirm_paid_order đổi pending → paid và cộng lượt
-→ frontend tự tải lại ví/lịch sử đơn
-```
+### Thai sản
+Hỗ trợ các trường hợp phổ biến:
+- lao động nữ sinh con;
+- lao động nam có vợ sinh con;
+- khám thai;
+- sảy thai/phá thai/thai chết/thai ngoài tử cung;
+- đặt dụng cụ tránh thai;
+- triệt sản;
+- trợ cấp thai sản BHXH tự nguyện khi sinh con.
 
-Webhook không tin vào `returnUrl`; return URL chỉ phục vụ giao diện. Xác nhận dịch vụ dựa trên webhook đã kiểm tra chữ ký. Khi trang QR còn mở, frontend cũng polling `/api/orders/:id/status` để đối soát trạng thái với payOS nếu webhook đến chậm.
+Các trường hợp mang thai hộ, nhận con nuôi và hồ sơ đặc biệt chưa được tự động hóa toàn bộ; cần đối chiếu hồ sơ thực tế.
 
-### Migration production
+## 2. Đồng bộ lượt sử dụng
 
-Nếu database chưa có RPC thanh toán tự động, chạy `supabase/migration-v3.3.sql` để thêm `confirm_paid_order`, giúp cập nhật đơn và cộng lượt trong cùng transaction. Code có fallback tương thích schema cũ, nhưng production nên chạy migration.
+Tên hiển thị thương mại:
+- **Lượt nhập thủ công** → cột DB `direct_credits`;
+- **Lượt nhập bằng file/ảnh tự động** → `file_credits`;
+- **Lượt lưu lịch sử** → `history_credits`.
 
-### Admin
+Quy tắc:
+1. Phép tính thủ công hợp lệ của bất kỳ tab nào → trừ 1 lượt nhập thủ công.
+2. File/ảnh chỉ trừ 1 lượt khi đã đọc được ít nhất một giai đoạn hợp lệ; lỗi trước đó không mất lượt.
+3. Dữ liệu quá trình đã đọc bằng file/ảnh có thể dùng tiếp cho lương hưu và BHXH một lần mà không trừ thêm lượt thủ công.
+4. Mỗi lần người dùng chủ động lưu kết quả → trừ 1 lượt lưu lịch sử.
 
-Tại `/admin`, khu vực đơn hàng có nút **Đăng ký / cập nhật Webhook**. Nút này gọi payOS `confirm-webhook` và cấu hình URL:
+Tài khoản mới vẫn mặc định `3 / 0 / 3` như schema hiện tại.
 
-```text
-https://tinhluonghuu-bhxh.vercel.app/api/payments/payos/webhook
-```
+## 3. Lịch sử
 
-Xem `DEPLOY-V3.3.md` để triển khai từng bước.
+`calculation_history` được dùng chung cho cả 4 chế độ. Không thêm cột mới: loại kết quả được lưu trong `input_json.benefitType` và `result_json.benefitType` để tương thích database v3.6.
 
----
+Người dùng có thể `Tra cứu` lại từng bản lưu, xem các chỉ tiêu chính và xóa bản lịch sử của chính mình.
 
+## 4. Admin
 
-Web ước tính lương hưu Việt Nam theo Luật BHXH 2024, có hệ thống tài khoản, hạn mức sử dụng, lịch sử, gói trả phí và trang quản trị. Người dùng có thể nhập quá trình đóng trực tiếp hoặc nhập từ ảnh/PDF/Word/Excel. Phép tính cuối cùng được thực hiện bởi **engine quy tắc trong source code**, không giao cho mô hình AI tự quyết định số tiền lương hưu.
-
-> Đây là công cụ tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH và văn bản có hiệu lực tại thời điểm giải quyết chế độ.
-
-## Cập nhật từ v3.1 lên v3.2
-
-Bản v3.2 **không bắt buộc chạy thêm SQL** nếu database v3.1.2 hiện tại đã có các bảng/hàm cơ bản (`wallets`, `import_jobs`, `consume_credit`, `refund_credit`). Chỉ cần cập nhật source và Redeploy Vercel.
-
-Các thay đổi chính:
-
-1. **Không trừ lượt hồ sơ khi vừa bấm đọc.** Server chỉ trừ 01 lượt sau khi đã nhận diện được ít nhất một giai đoạn BHXH hợp lệ. Lỗi parser/AI/timeout trước thời điểm đó không làm giảm số lượt.
-2. Nếu lỗi kỹ thuật xảy ra sau khi đã trừ lượt, backend tự gọi hoàn 01 lượt và frontend tải lại số dư ngay.
-3. Lỗi upload của `multer` được trả về JSON rõ ràng thay vì HTML `HTTP 500`.
-4. Trên Vercel, `/api/config` trả giới hạn upload trực tiếp khoảng 4 MB để trình duyệt chặn trước những request chắc chắn vượt giới hạn 4,5 MB của Vercel Functions; request bị chặn trước không trừ lượt.
-5. Model ảnh/PDF mặc định đổi sang `gemini-2.5-flash`, là model được tài liệu ShopAIKey nêu rõ cho Gemini native/vision; fallback vẫn là `gpt-5.6-luna`.
-6. Mỗi lỗi import có `errorId` để tra trong Vercel Logs.
-
-File `supabase/migration-v3.2.sql` là **tùy chọn tăng cứng**: thêm cơ chế charge/refund idempotent theo từng `import_job`. Nếu bạn chưa muốn thao tác SQL thêm, code vẫn tự tương thích với `consume_credit` / `refund_credit` của v3.1.2.
-
-### Cập nhật bắt buộc từ v3.0/v3.1 cũ nếu database chưa hoàn chỉnh
-
-- Supabase phải có schema v3.1.2 (các bảng `profiles`, `wallets`, `plans`, `orders`, `usage_events`, `calculation_history`, `import_jobs`, `admin_audit_logs`).
-- Vercel cần `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SHOPAIKEY_API_KEY`, `ADMIN_EMAILS`.
-- Authentication dùng Email/Google; Phone đã bỏ.
-
-
-## v3.5 - VietQR hiển thị trực tiếp
-
-Khi khách chọn gói, website hiển thị ngay mã VietQR trong modal cùng số tài khoản, số tiền và nội dung chuyển khoản. Ảnh QR được dựng từ dữ liệu payment request do payOS trả về; checkout payOS chỉ còn là link dự phòng. Không cần migration database mới khi nâng từ v3.4.1.
-
-
-## 1. Điểm mới của v3
-
-### Tài khoản và hạn mức
-
-Tài khoản mới được cấp mặc định:
-
-- **03 lượt tính bằng Nhập trực tiếp quá trình đóng**;
-- **00 lượt Nhập từ ảnh hoặc file hồ sơ**;
-- **03 lượt lưu lịch sử**.
-
-Ba loại lượt được lưu ở `wallets` và trừ **phía server**. Không dùng localStorage hay biến JavaScript trên trình duyệt để quyết định quyền sử dụng.
-
-Đăng nhập hỗ trợ:
-
-- Email + mật khẩu;
-- Google/Gmail qua OAuth;
-
-
-### Gói dịch vụ
-
-Admin có thể tạo/sửa giá và số lượt cho từng gói mà không sửa source. Schema có sẵn ba **gói mẫu để tham khảo**, có thể chỉnh hoặc tắt trước khi mở bán:
-
-| Gói mẫu | Giá mẫu | Trực tiếp | Hồ sơ | Lưu lịch sử |
-|---|---:|---:|---:|---:|
-| Gói Trực tiếp 10 | 29.000đ | 10 | 0 | 10 |
-| Gói Hồ sơ 5 | 49.000đ | 0 | 5 | 5 |
-| Combo 99K | 99.000đ | 20 | 10 | 20 |
-
-**Giá trên chỉ là giá seed kỹ thuật**, không phải khuyến nghị kinh doanh. Hãy điều chỉnh theo chi phí AI, phí thanh toán, thuế, hỗ trợ khách hàng và biên lợi nhuận thực tế.
-
-### Admin
-
-Trang `/admin` gồm:
-
-- tổng số tài khoản;
-- đơn hàng chờ duyệt;
-- doanh thu các đơn đã duyệt;
-- thời gian xử lý hồ sơ trung bình;
-- danh sách tài khoản + số lượt còn lại;
+`/admin` hỗ trợ:
+- xem tài khoản, số lượt, khóa/mở tài khoản;
 - cộng lượt thủ công;
-- tạm khóa/mở khóa tài khoản;
-- tạo/sửa/bật/tắt gói;
-- duyệt chuyển khoản và tự cộng lượt;
-- log các lần import: parser/model/thời gian/trạng thái.
+- **thêm/sửa/bật-tắt/xóa gói**;
+- xem đơn hàng;
+- xác nhận thanh toán thủ công khi cần;
+- **hủy đơn đang chờ**;
+- với payOS: đối soát trước khi hủy để không hủy nhầm đơn đã trả tiền;
+- theo dõi parser/model/thời gian đọc hồ sơ.
 
-Mọi API admin kiểm tra `role = admin` ở server. Secret/service-role key không được đưa ra trình duyệt.
+Khi xóa một gói, đơn hàng cũ vẫn được giữ nhờ snapshot tên gói, số tiền và số lượt trong bảng `orders`.
 
-## 2. Chiến lược đọc hồ sơ nhanh
+## 5. Thanh toán payOS
 
-Không nên gửi mọi file sang một model lớn.
-
-Luồng v3:
+Luồng:
 
 ```text
-File người dùng
-   ↓
-Có cấu trúc đọc trực tiếp được?
-   ├─ Excel mẫu BHXH chuẩn → parser XLSX cục bộ → JSON
-   └─ Ảnh / PDF scan / hồ sơ khó
-          ↓
-     Gemini Flash (tuyến nhanh)
-          ↓ lỗi / JSON không hợp lệ / timeout
-     GPT-5.6 Luna (fallback)
-          ↓
-     Chuẩn hóa + lọc trùng + cảnh báo phần chưa rõ
-          ↓
-     Engine tính lương hưu
+Chọn gói
+→ tạo đơn pending
+→ payOS tạo VietQR động
+→ QR hiển thị ngay trong web
+→ ngân hàng ghi nhận tiền
+→ payOS webhook
+→ xác minh chữ ký + số tiền + đơn
+→ pending → paid
+→ tự cộng lượt
 ```
 
-### Vì sao thay đổi này quan trọng
+Webhook/polling đều dùng cơ chế idempotent để không cộng lượt hai lần.
 
-Với file Excel BHXH dạng bảng có các cột như `Từ tháng`, `Đến tháng`, `Mức đóng`, phụ cấp..., backend đọc trực tiếp bằng parser. Không cần upload toàn bộ bảng sang AI nên tránh phần lớn độ trễ 120 giây.
+## 6. Đọc hồ sơ
 
-`server/structured-bhxh.js` hiện nhận diện bảng BHXH dạng Mẫu 07/SBH phổ biến, đồng thời bỏ dòng chỉ ghi BHTN để tránh cộng trùng quá trình hưu trí.
+- Excel BHXH có cấu trúc → parser trực tiếp, không dùng AI.
+- Ảnh/PDF scan → Gemini Flash tuyến nhanh.
+- Fallback → GPT-5.6 Luna.
+- File lỗi/timeout không làm mất lượt; nếu lỗi kỹ thuật xảy ra sau charge thì backend hoàn lượt.
 
-### Model mặc định
+Mặc định:
 
 ```env
 SHOPAIKEY_FAST_MODEL=gemini-2.5-flash
 SHOPAIKEY_FALLBACK_MODEL=gpt-5.6-luna
 ```
 
-- `gemini-2.5-flash`: tuyến ưu tiên cho ảnh/PDF scan vì mục tiêu của dòng Flash là tốc độ/multimodal;
-- `gpt-5.6-luna`: fallback theo chuẩn OpenAI-compatible, nhẹ và rẻ hơn Terra theo bảng giá gateway tại thời điểm xây dựng;
-- `gpt-5.6-terra`: không dùng mặc định; có thể cấu hình làm tuyến escalation riêng nếu sau này cần xử lý hồ sơ rất khó.
-
-Không nên cam kết một số giây cố định cho AI vì độ trễ còn phụ thuộc số trang, kích thước ảnh, channel/provider và tải hệ thống. Admin dashboard lưu `latency_ms` để benchmark trên dữ liệu thật rồi quyết định route. Với ảnh/PDF scan, backend mặc định chia vision thành batch 4 ảnh và xử lý tối đa 2 batch song song (`AI_IMAGE_BATCH_SIZE`, `AI_BATCH_CONCURRENCY`), sau đó gộp/lọc trùng lại; tránh một request quá lớn phải chờ lâu.
-
-## 3. Luồng quota
-
-### Nhập trực tiếp
-
-1. Người dùng nhập dữ liệu.
-2. Server kiểm tra và tính.
-3. Chỉ khi phép tính hợp lệ mới trừ **01 direct credit**.
-
-### Nhập hồ sơ
-
-1. Người dùng tải file.
-2. Server tạo `import_job` nhưng **chưa trừ lượt**.
-3. Parser/AI đọc, chuẩn hóa và kiểm tra dữ liệu.
-4. Nếu không có giai đoạn hợp lệ hoặc có lỗi parser/AI/timeout → import thất bại và **không trừ lượt**.
-5. Khi đã có ít nhất một giai đoạn hợp lệ → server mới trừ **01 file credit**.
-6. Nếu một lỗi kỹ thuật hiếm xảy ra sau bước trừ lượt nhưng trước khi trả kết quả → backend tự hoàn **01 file credit**; frontend refresh số dư và thông báo rõ đã hoàn.
-7. Một `import_job` thành công được dùng cho một phép tính hồ sơ; reload cùng input có thể trả cached result, không trừ thêm.
-
-### Lưu lịch sử
-
-Mỗi lần bấm lưu kết quả → trừ **01 history credit**. RPC `save_calculation_history` thực hiện trừ credit + lưu lịch sử trong cùng giao dịch database.
-
-## 4. Database
-
-Chạy file:
-
-```text
-supabase/schema.sql
-```
-
-Các bảng chính:
-
-- `profiles`: role/status;
-- `wallets`: 3 ví lượt;
-- `plans`: gói dịch vụ;
-- `orders`: đơn thanh toán;
-- `usage_events`: sổ biến động credit;
-- `calculation_history`: lịch sử người dùng chủ động lưu;
-- `import_jobs`: hiệu năng và trạng thái import;
-- `admin_audit_logs`: log thao tác admin.
-
-RLS được bật; các bảng nghiệp vụ không mở trực tiếp cho browser. Backend dùng server credential để thực hiện nghiệp vụ sau khi xác thực JWT người dùng.
-
-### Tạo admin
-
-Không có form “đăng ký admin” riêng. Thêm email quản trị vào Vercel Environment Variable:
-
-```env
-ADMIN_EMAILS=your-admin@gmail.com
-```
-
-Sau đó đăng ký/đăng nhập email hoặc Google bình thường. Ở request đầu tiên, server tự nâng `profiles.role` thành `admin`. Có thể khai báo nhiều email, phân cách bằng dấu phẩy.
-
-## 5. Cấu hình Supabase Auth
-
-### Email
-
-Email/password dùng trực tiếp Supabase Auth. Nên bật xác minh email khi chạy production. Khi đăng ký, frontend đặt `emailRedirectTo` về `/auth/confirmed`; trang này hiển thị “Đăng ký thành công” và giữ phiên đăng nhập nếu Supabase trả session qua URL.
-
-### Google/Gmail
-
-Trong Supabase Dashboard:
-
-1. Authentication → Providers → Google;
-2. tạo OAuth Client trong Google Cloud;
-3. điền Client ID/Secret;
-4. thêm domain production và redirect URL theo hướng dẫn Supabase.
-
-Frontend gọi `signInWithOAuth({ provider: 'google' })`.
-
-## 6. Cấu hình môi trường
-
-Sao chép `.env.example` thành `.env`:
+## 7. Environment Variables
 
 ```env
 SHOPAIKEY_API_KEY=...
@@ -262,80 +124,28 @@ AI_BATCH_CONCURRENCY=2
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 SUPABASE_SECRET_KEY=sb_secret_...
-ADMIN_EMAILS=your-admin@gmail.com
 
-PAYMENT_BANK_NAME=VCB
-PAYMENT_BANK_ACCOUNT=...
-PAYMENT_ACCOUNT_NAME=...
-PORT=3000
+ADMIN_EMAILS=admin@example.com
+APP_URL=https://tinhluonghuu-bhxh.vercel.app
+
+PAYOS_CLIENT_ID=...
+PAYOS_API_KEY=...
+PAYOS_CHECKSUM_KEY=...
+PAYOS_PAYMENT_EXPIRY_MINUTES=30
+PAYOS_TIMEOUT_MS=12000
 ```
 
-`SUPABASE_SECRET_KEY`/`SUPABASE_SERVICE_ROLE_KEY` và `SHOPAIKEY_API_KEY` **chỉ đặt ở server/Vercel Environment Variables**, tuyệt đối không commit GitHub hoặc render vào HTML.
+Secret keys chỉ đặt phía server/Vercel; không commit GitHub và không đưa vào HTML/JS frontend.
 
-## 7. Thanh toán
+## 8. Database
 
-Bản v3 triển khai MVP an toàn để có thể thử thương mại ngay:
+Nếu nâng cấp từ v3.6 đang chạy bình thường thì **v3.7 không bắt buộc chạy SQL migration mới**.
 
-```text
-Khách chọn gói
-→ tạo mã đơn hàng
-→ hiển thị thông tin chuyển khoản
-→ admin kiểm tra tiền
-→ bấm “Xác nhận đã thanh toán”
-→ RPC approve_order
-→ tự cộng credit
-```
+Bản cài mới có thể dùng `supabase/schema.sql`; các migration cũ được giữ để tham chiếu/nâng cấp tuần tự.
 
-Khi có tài khoản merchant, có thể thay bước admin duyệt bằng webhook của PayOS/VNPay/MoMo. Khi triển khai webhook cần:
+## 9. Chạy local
 
-- xác minh chữ ký từ nhà cung cấp;
-- idempotency theo mã giao dịch;
-- không cộng credit hai lần;
-- lưu raw event/audit;
-- xử lý hoàn tiền/chargeback nếu nhà cung cấp hỗ trợ.
-
-## 8. Quyền riêng tư và dữ liệu hồ sơ
-
-Hồ sơ BHXH chứa dữ liệu cá nhân và thu nhập. Bản v3 theo hướng tối thiểu hóa dữ liệu:
-
-- file upload chỉ được xử lý trong request, **không lưu bản gốc vào database**;
-- `import_jobs` chỉ lưu metadata kỹ thuật, không lưu file;
-- kết quả chỉ được lưu vào `calculation_history` khi người dùng chủ động bấm **Lưu lịch sử**;
-- người dùng có thể xóa lịch sử;
-- production nên bổ sung trang Điều khoản sử dụng, Chính sách bảo mật và cơ chế yêu cầu xóa tài khoản/dữ liệu;
-- cần cấu hình log production để **không ghi raw hồ sơ, access token hoặc API key**.
-
-## 9. Các lớp chống lạm dụng cần bật trước khi mở bán rộng
-
-Repo đã có kiểm tra quota server-side, nhưng production nên bổ sung:
-
-1. rate limit theo IP + user cho `/api/import`, `/api/calculate`, login và tạo đơn;
-2. CAPTCHA/rate limit cho đăng ký, đăng nhập và các endpoint nhạy cảm;
-3. giới hạn MIME/file signature, không chỉ extension;
-4. malware scan nếu sau này lưu file;
-5. timeout + circuit breaker cho AI provider;
-6. daily cost ceiling/cảnh báo chi phí;
-7. sao lưu database và theo dõi lỗi;
-8. payment webhook chính thức nếu muốn tự động hóa doanh thu;
-9. trang privacy/terms/consent;
-10. chính sách lưu/xóa lịch sử theo thời hạn.
-
-## 10. Công thức BHXH
-
-Các rule chính nằm trong:
-
-- `js/rules.js`;
-- `js/contributions.js`;
-- `js/pension.js`;
-- `js/salary-scales.js`.
-
-Cơ sở pháp lý được mô hình hóa gồm Luật BHXH 41/2024/QH15, Nghị định 135/2020/NĐ-CP, Nghị định 158/2025/NĐ-CP, các bảng lương/hệ số liên quan và các văn bản cập nhật mức lương cơ sở/hệ số điều chỉnh đã tích hợp trong source.
-
-Lưu ý: cần rà soát văn bản mới trước khi thương mại hóa chính thức và cập nhật rule khi pháp luật thay đổi.
-
-## 11. Chạy local
-
-Yêu cầu Node.js 20+.
+Node.js 20+:
 
 ```bash
 npm install
@@ -343,68 +153,52 @@ cp .env.example .env
 npm start
 ```
 
-Mở:
-
 - Công cụ: `http://localhost:3000/`
 - Admin: `http://localhost:3000/admin`
 - Health: `http://localhost:3000/api/health`
 
-Nếu chưa cấu hình Supabase, phần engine frontend vẫn có thể dùng cho development, nhưng tài khoản/quota/import thương mại sẽ chưa hoạt động đầy đủ.
-
-## 12. Deploy
+## 10. Deploy
 
 Khuyến nghị:
-
 - GitHub: source control;
-- Vercel/Render/Fly.io: Node backend;
+- Vercel/Render/Fly: Node backend;
 - Supabase: Auth + Postgres;
-- ShopAIKey: AI gateway cho các file thực sự cần model.
+- payOS: QR/webhook;
+- ShopAIKey: AI gateway.
 
-Không dùng GitHub Pages thuần tĩnh cho bản thương mại vì cần giữ secret key và thực thi quota ở backend.
+Xem `DEPLOY-V3.7.md`.
 
-## 13. Cấu trúc repo
+## 11. Kiểm thử
 
-```text
-vn-pension-calculator-v3/
-├── index.html
-├── admin.html
-├── styles.css
-├── js/
-│   ├── account.js
-│   ├── admin.js
-│   ├── app.js
-│   ├── contributions.js
-│   ├── pension.js
-│   ├── rules.js
-│   └── salary-scales.js
-├── server/
-│   ├── index.js
-│   ├── parsers.js
-│   ├── structured-bhxh.js
-│   ├── shopaikey.js
-│   └── supabase.js
-├── supabase/
-│   └── schema.sql
-├── tests/
-├── .env.example
-├── package.json
-└── vercel.json
+```bash
+npm test
 ```
 
-## 14. Tài liệu kỹ thuật tham khảo
+Bản đóng gói v3.7: **50/50 test PASS**.
 
-- ShopAIKey model/pricing: https://shopaikey.com/en/models
-- ShopAIKey: https://shopaikey.com/
-- Supabase Auth: https://supabase.com/docs/guides/auth
-- Supabase Google login: https://supabase.com/docs/guides/auth/social-login/auth-google
-- Supabase admin users: https://supabase.com/docs/reference/javascript/auth-admin-listusers
+## 12. File chính
 
-
-## Sửa lỗi payOS v3.4
-
-Nếu chọn gói nhưng không tạo được QR, bản v3.4 trả lỗi payOS cụ thể và `errorId` thay cho HTTP 500 chung. Kiểm tra `/api/health`, sau đó đăng nhập `/admin` và bấm **Đăng ký / cập nhật Webhook** để kiểm tra kết nối thật. Xem `DEPLOY-V3.4.md`.
-
-
-## Hotfix v3.4.1
-
-Sửa lỗi `expiredAt is not defined` khi tạo QR payOS. Không cần migration SQL hoặc thay đổi biến môi trường; chỉ cần redeploy source.
+```text
+index.html
+admin.html
+styles.css
+js/
+  account.js
+  admin.js
+  app.js
+  benefits.js
+  benefits-ui.js
+  contributions.js
+  pension.js
+  rules.js
+  salary-scales.js
+server/
+  index.js
+  payos.js
+  parsers.js
+  shopaikey.js
+  structured-bhxh.js
+  supabase.js
+supabase/
+tests/
+```

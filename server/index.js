@@ -8,6 +8,7 @@ import { parseUploadedFile } from './parsers.js';
 import { extractBhxhWithAI } from './shopaikey.js';
 import { dedupeImportedPeriods, buildProjectedPeriods, calculateAverageBase } from '../js/contributions.js';
 import { calculatePension } from '../js/pension.js';
+import { calculateOneTimeSocialInsurance, calculateUnemploymentBenefit, calculateMaternityBenefit } from '../js/benefits.js';
 import {
   supabaseAdmin,
   supabaseConfigured,
@@ -22,7 +23,7 @@ import {
   normalizeDatabaseError,
   databaseStatus
 } from './supabase.js';
-import { payosConfigured, createPayosPayment, getPayosPayment, verifyPayosWebhook, confirmPayosWebhook, buildPaymentDescription, buildVietQrImageUrl, getPayosDiagnostics } from './payos.js';
+import { payosConfigured, createPayosPayment, getPayosPayment, cancelPayosPayment, verifyPayosWebhook, confirmPayosWebhook, buildPaymentDescription, buildVietQrImageUrl, getPayosDiagnostics } from './payos.js';
 
 const __filename=fileURLToPath(import.meta.url);
 const __dirname=path.dirname(__filename);
@@ -211,7 +212,7 @@ app.get('/api/config',(_req,res)=>{
     maxDirectUploadBytes:process.env.VERCEL==='1'?4*1024*1024:MAX_TOTAL_UPLOAD
   });
 });
-app.get('/api/health',(_req,res)=>res.json({ok:true,authConfigured:supabaseConfigured,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'}));
+app.get('/api/health',(_req,res)=>res.json({ok:true,version:'3.7.0',authConfigured:supabaseConfigured,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'}));
 app.get('/api/system/status',async(_req,res)=>{
   try{res.json(await databaseStatus());}
   catch(e){sendDbError(res,e,'Không kiểm tra được cơ sở dữ liệu.');}
@@ -365,6 +366,43 @@ app.delete('/api/history/:id',requireUser,async(req,res)=>{
   if(error)return sendDbError(res,error,'Không xóa được lịch sử.');res.json({ok:true});
 });
 
+app.post('/api/benefits/calculate',requireUser,async(req,res)=>{
+  try{
+    const benefitType=String(req.body?.benefitType||'');
+    const mode=req.body?.mode==='file'?'file':'manual';
+    let result;
+    if(benefitType==='one_time'){
+      const periods=Array.isArray(req.body?.periods)?req.body.periods:[];
+      result=calculateOneTimeSocialInsurance({
+        periods,
+        settlementMonth:String(req.body?.settlementMonth||''),
+        actualPaidVnd:Number(req.body?.actualPaidVnd||0),
+        eligibilityReason:String(req.body?.eligibilityReason||'')
+      });
+      if(mode==='file'){
+        const jobId=String(req.body?.importJobId||'');
+        if(!jobId)return res.status(400).json({code:'IMPORT_JOB_REQUIRED',error:'Cần đọc hồ sơ file/ảnh thành công trước khi tính BHXH một lần bằng dữ liệu tự động.'});
+        const {data:job,error}=await supabaseAdmin.from('import_jobs').select('id,status').eq('id',jobId).eq('user_id',req.user.id).maybeSingle();
+        if(error)throw error;
+        if(!job||job.status!=='success')return res.status(400).json({code:'IMPORT_JOB_INVALID',error:'Không tìm thấy phiên đọc hồ sơ hợp lệ.'});
+      }
+    }else if(benefitType==='unemployment'){
+      result=calculateUnemploymentBenefit(req.body?.input||{});
+    }else if(benefitType==='maternity'){
+      result=calculateMaternityBenefit(req.body?.input||{});
+    }else{
+      return res.status(400).json({code:'BENEFIT_TYPE_INVALID',error:'Loại chế độ cần tính không hợp lệ.'});
+    }
+    if(!result?.ok)return res.status(400).json({code:'BENEFIT_INPUT_INVALID',error:(result?.errors||['Dữ liệu chưa đủ để tính.']).join(' '),details:result});
+    if(mode==='manual'){
+      await consumeCredit(req.user.id,'direct','benefit_calculation',{benefitType,inputHash:stableHash(req.body||{})});
+    }
+    res.json({ok:true,benefitType,mode,result,wallet:await getWallet(req.user.id)});
+  }catch(e){
+    res.status(e.code==='NO_CREDIT'?402:(e.status||400)).json({code:e.code||'BENEFIT_CALCULATION_FAILED',error:e.code==='NO_CREDIT'?'Bạn đã hết lượt nhập thủ công. Vui lòng mua thêm gói.':(e.message||'Không tính được chế độ.'),details:e.details});
+  }
+});
+
 app.post('/api/calculate',requireUser,async(req,res)=>{
   try{
     const mode=req.body?.mode==='file'?'file':'manual';
@@ -376,15 +414,11 @@ app.post('/api/calculate',requireUser,async(req,res)=>{
     }else{
       const jobId=String(req.body?.importJobId||'');
       if(!jobId)return res.status(400).json({error:'Phiên nhập hồ sơ không hợp lệ. Hãy đọc lại file hoặc dùng lượt nhập thủ công.'});
-      const {data:job,error}=await supabaseAdmin.from('import_jobs').select('*').eq('id',jobId).eq('user_id',req.user.id).maybeSingle();
+      const {data:job,error}=await supabaseAdmin.from('import_jobs').select('id,status').eq('id',jobId).eq('user_id',req.user.id).maybeSingle();
       if(error)throw error;if(!job||job.status!=='success')return res.status(400).json({error:'Không tìm thấy phiên nhập hồ sơ hợp lệ.'});
-      if(job.used_for_calculation){
-        if(job.calculation_input_hash===inputHash&&job.calculation_result)return res.json({...job.calculation_result,wallet:await getWallet(req.user.id),cached:true});
-        return res.status(409).json({error:'Lượt tra cứu bằng hồ sơ này đã được sử dụng cho một phép tính khác. Hãy nhập lại hồ sơ hoặc dùng lượt tính trực tiếp.'});
-      }
-      const payload={...calculation,mode,importJobId:jobId};
-      const {data:updated,error:updateError}=await supabaseAdmin.from('import_jobs').update({used_for_calculation:true,calculation_input_hash:inputHash,calculation_result:payload,updated_at:new Date().toISOString()}).eq('id',jobId).eq('user_id',req.user.id).eq('used_for_calculation',false).select('id').maybeSingle();
-      if(updateError)throw updateError;if(!updated)return res.status(409).json({error:'Phiên hồ sơ vừa được sử dụng ở một yêu cầu khác. Vui lòng tải lại trang.'});
+      // Lượt file/ảnh được trừ khi đọc hồ sơ thành công. Sau đó người dùng có thể dùng
+      // cùng dữ liệu đã đọc cho các phép tính chế độ mà không bị trừ thêm lượt thủ công.
+      await supabaseAdmin.from('import_jobs').update({used_for_calculation:true,calculation_input_hash:inputHash,updated_at:new Date().toISOString()}).eq('id',jobId).eq('user_id',req.user.id);
     }
     res.json({...calculation,mode,wallet:await getWallet(req.user.id)});
   }catch(e){res.status(e.code==='NO_CREDIT'?402:(e.status||400)).json({error:e.message||'Không thể tính lương hưu.',details:e.details});}
@@ -416,11 +450,11 @@ function publicImportError(error){
   if(error?.code==='NO_CREDIT')return {status:402,code:'NO_CREDIT',message:raw};
   if(error?.code==='DATABASE_SETUP_REQUIRED')return {status:503,code:'DATABASE_SETUP_REQUIRED',message:raw};
   if(error?.code==='NO_IMPORTABLE_DATA')return {status:422,code:'NO_IMPORTABLE_DATA',message:raw};
-  if(error?.name==='AbortError'||/timeout|time.?out|hết thời gian/i.test(raw))return {status:504,code:'IMPORT_TIMEOUT',message:'Dịch vụ đọc hồ sơ quá thời gian xử lý. Lượt hồ sơ sẽ được tự động hoàn lại.'};
-  if(/API key|chưa cấu hình/i.test(raw))return {status:503,code:'AI_NOT_CONFIGURED',message:'Dịch vụ đọc hồ sơ chưa được cấu hình đầy đủ. Lượt hồ sơ sẽ được tự động hoàn lại.'};
-  if(/HTTP 401|HTTP 403|unauthorized|forbidden|invalid.*key/i.test(raw))return {status:502,code:'AI_AUTH_FAILED',message:'Dịch vụ đọc hồ sơ từ chối xác thực. Quản trị viên cần kiểm tra API key. Lượt hồ sơ sẽ được tự động hoàn lại.'};
+  if(error?.name==='AbortError'||/timeout|time.?out|hết thời gian/i.test(raw))return {status:504,code:'IMPORT_TIMEOUT',message:'Dịch vụ đọc hồ sơ quá thời gian xử lý. Lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
+  if(/API key|chưa cấu hình/i.test(raw))return {status:503,code:'AI_NOT_CONFIGURED',message:'Dịch vụ đọc hồ sơ chưa được cấu hình đầy đủ. Lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
+  if(/HTTP 401|HTTP 403|unauthorized|forbidden|invalid.*key/i.test(raw))return {status:502,code:'AI_AUTH_FAILED',message:'Dịch vụ đọc hồ sơ từ chối xác thực. Quản trị viên cần kiểm tra API key. Lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
   if(/HTTP 429|rate limit|too many requests/i.test(raw))return {status:503,code:'AI_RATE_LIMIT',message:'Dịch vụ đọc hồ sơ đang quá tải. Vui lòng thử lại sau; lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
-  return {status:400,code:error?.code||'IMPORT_FAILED',message:raw||'Không thể xử lý tệp. Lượt hồ sơ sẽ được tự động hoàn lại.'};
+  return {status:400,code:error?.code||'IMPORT_FAILED',message:raw||'Không thể xử lý tệp. Lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
 }
 
 app.post('/api/import',requireUser,runImportUpload,async(req,res)=>{
@@ -560,6 +594,17 @@ app.patch('/api/admin/plans/:id',requireAdmin,async(req,res)=>{
   for(const [k,col] of Object.entries(map))if(req.body?.[k]!==undefined)patch[col]=['price_vnd','direct_credits','file_credits','history_credits','sort_order'].includes(col)?Math.max(0,Number(req.body[k])):req.body[k];
   const {data,error}=await supabaseAdmin.from('plans').update(patch).eq('id',req.params.id).select('*').single();if(error)return res.status(400).json({error:error.message});res.json({plan:data});
 });
+app.delete('/api/admin/plans/:id',requireAdmin,async(req,res)=>{
+  try{
+    const {data:plan,error:findError}=await supabaseAdmin.from('plans').select('*').eq('id',req.params.id).maybeSingle();
+    if(findError)throw findError;if(!plan)return res.status(404).json({error:'Không tìm thấy gói cần xóa.'});
+    const {error:unlinkError}=await supabaseAdmin.from('orders').update({plan_id:null,updated_at:new Date().toISOString()}).eq('plan_id',plan.id);
+    if(unlinkError)throw unlinkError;
+    const {error:deleteError}=await supabaseAdmin.from('plans').delete().eq('id',plan.id);if(deleteError)throw deleteError;
+    await supabaseAdmin.from('admin_audit_logs').insert({admin_user_id:req.user.id,action:'delete_plan',metadata:{plan_id:plan.id,code:plan.code,name:plan.name}});
+    res.json({ok:true});
+  }catch(e){const n=normalizeDatabaseError(e);res.status(n.status||400).json({code:n.code||'PLAN_DELETE_FAILED',error:n.message||'Không xóa được gói.'});}
+});
 app.get('/api/admin/orders',requireAdmin,async(_req,res)=>{
   const {data,error}=await supabaseAdmin.from('orders').select('*').order('created_at',{ascending:false}).limit(200);
   if(error)return res.status(500).json({error:error.message});
@@ -576,6 +621,26 @@ app.get('/api/admin/orders',requireAdmin,async(_req,res)=>{
 app.post('/api/admin/orders/:id/approve',requireAdmin,async(req,res)=>{
   const {data,error}=await supabaseAdmin.rpc('approve_order',{p_order_id:req.params.id,p_admin_id:req.user.id});if(error)return res.status(400).json({error:error.message});res.json({order:Array.isArray(data)?data[0]:data});
 });
+app.post('/api/admin/orders/:id/cancel',requireAdmin,async(req,res)=>{
+  try{
+    const {data:order,error}=await supabaseAdmin.from('orders').select('*').eq('id',req.params.id).maybeSingle();
+    if(error)throw error;if(!order)return res.status(404).json({error:'Không tìm thấy đơn hàng.'});
+    if(order.status!=='pending')return res.status(409).json({error:`Chỉ có thể hủy đơn đang chờ thanh toán. Đơn hiện tại: ${order.status}.`});
+    if(order.payment_method==='payos'&&payosConfigured){
+      const provider=await getPayosPayment(order.payment_code);
+      const providerStatus=String(provider?.status||'').toUpperCase();
+      if(providerStatus==='PAID'){
+        await confirmOrderPayment(order.id,String(provider?.transactions?.[0]?.reference||provider?.id||''),{source:'admin_cancel_reconcile'});
+        return res.status(409).json({error:'payOS đã ghi nhận đơn này thanh toán thành công nên không thể hủy. Hệ thống đã đối soát và cộng lượt.'});
+      }
+      if(providerStatus!=='CANCELLED')await cancelPayosPayment(order.payment_code,String(req.body?.reason||'Quản trị viên hủy giao dịch'));
+    }
+    const {data:cancelled,error:cancelError}=await supabaseAdmin.from('orders').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',order.id).eq('status','pending').select('*').maybeSingle();
+    if(cancelError)throw cancelError;if(!cancelled)return res.status(409).json({error:'Trạng thái đơn vừa thay đổi. Hãy tải lại danh sách.'});
+    await supabaseAdmin.from('admin_audit_logs').insert({admin_user_id:req.user.id,action:'cancel_order',target_user_id:order.user_id,metadata:{order_id:order.id,payment_code:order.payment_code,reason:String(req.body?.reason||'')}});
+    res.json({ok:true,order:cancelled});
+  }catch(e){const n=normalizeDatabaseError(e);res.status(e.status||n.status||400).json({code:e.code||n.code||'ORDER_CANCEL_FAILED',error:e.message||n.message||'Không hủy được giao dịch.'});}
+});
 
 app.use((error,req,res,next)=>{
   if(!req.path.startsWith('/api/'))return next(error);
@@ -588,5 +653,5 @@ app.use((error,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.sendFile(path.join(rootDir,'index.html')));
-if(process.env.VERCEL!=='1')app.listen(port,()=>console.log(`VN Pension Calculator v3.3: http://localhost:${port}`));
+if(process.env.VERCEL!=='1')app.listen(port,()=>console.log(`VN Social Insurance Benefits Calculator v3.7: http://localhost:${port}`));
 export default app;

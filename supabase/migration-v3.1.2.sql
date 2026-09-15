@@ -117,9 +117,9 @@ create table if not exists public.admin_audit_logs (
 
 -- Starter commercial plans. These are sample prices only; edit/deactivate them in /admin before launch.
 insert into public.plans(code,name,description,price_vnd,direct_credits,file_credits,history_credits,active,sort_order) values
-  ('DIRECT_10','Gói Trực tiếp 10','10 lượt tính bằng nhập trực tiếp + 10 lượt lưu lịch sử.',29000,10,0,10,true,10),
-  ('FILE_5','Gói Hồ sơ 5','5 lượt nhập hồ sơ/ảnh/file + 5 lượt lưu lịch sử.',49000,0,5,5,true,20),
-  ('COMBO_99','Combo 99K','20 lượt trực tiếp + 10 lượt hồ sơ + 20 lượt lưu lịch sử.',99000,20,10,20,true,30)
+  ('DIRECT_10','Gói Thủ công 10','10 lượt nhập thủ công + 10 lượt lưu lịch sử.',29000,10,0,10,true,10),
+  ('FILE_5','Gói File/ảnh 5','5 lượt nhập bằng file/ảnh tự động + 5 lượt lưu lịch sử.',49000,0,5,5,true,20),
+  ('COMBO_99','Combo 99K','20 lượt nhập thủ công + 10 lượt nhập bằng file/ảnh tự động + 20 lượt lưu lịch sử.',99000,20,10,20,true,30)
 on conflict (code) do nothing;
 
 create index if not exists orders_user_created_idx on public.orders(user_id, created_at desc);

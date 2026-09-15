@@ -6,7 +6,7 @@ export const LAW_META = {
   retirementDecree: "Nghị định 135/2020/NĐ-CP",
   baseSalaryDecree: "Nghị định 161/2026/NĐ-CP",
   wageRaiseCircular: "Thông tư 08/2013/TT-BNV, được sửa đổi bởi Thông tư 03/2021/TT-BNV",
-  updatedAt: "2026-09-14"
+  updatedAt: "2026-09-15"
 };
 
 // Mức tham chiếu hiện hành. Khi chưa bãi bỏ mức lương cơ sở, mức tham chiếu

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="Công cụ ước tính lương hưu theo Luật BHXH 2024, nhập quá trình đóng, phụ cấp tính đóng và hỗ trợ trích xuất nhiều ảnh/PDF/Word/Excel bằng AI." />
-  <title>Tính lương hưu Việt Nam — BHXH 2024</title>
+  <meta name="description" content="Công cụ ước tính lương hưu, BHXH một lần, trợ cấp thất nghiệp và chế độ thai sản; hỗ trợ quá trình đóng BHXH và đọc hồ sơ từ ảnh/PDF/Word/Excel." />
+  <title>Tính chế độ BHXH Việt Nam — Lương hưu, BHXH một lần, thất nghiệp, thai sản</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -12,8 +12,8 @@
     <div class="shell header-inner">
       <div>
         <p class="eyebrow">CÔNG CỤ THAM KHẢO · BHXH VIỆT NAM</p>
-        <h1>Tính lương hưu từ quá trình đóng BHXH</h1>
-        <p class="lead">Tự xác định tháng đủ tuổi nghỉ hưu, tính tiền lương đóng gồm các phụ cấp hợp lệ, và ước tính đến thời điểm nghỉ hưu.</p>
+        <h1>Tính các chế độ BHXH từ dữ liệu đóng</h1>
+        <p class="lead">Ước tính lương hưu, BHXH một lần, trợ cấp thất nghiệp và thai sản; kết quả có thể lưu để tra cứu lại trong tài khoản.</p>
       </div>
       <div class="header-actions">
         <div class="law-chip" id="lawVersion"></div>
@@ -34,6 +34,14 @@
 
   <main class="shell page-grid">
     <section class="main-column">
+      <nav class="benefit-tabs" aria-label="Chọn chế độ cần tính">
+        <button class="benefit-tab active" type="button" data-benefit-tab="pension">Lương hưu</button>
+        <button class="benefit-tab" type="button" data-benefit-tab="one_time">BHXH một lần</button>
+        <button class="benefit-tab" type="button" data-benefit-tab="unemployment">Trợ cấp thất nghiệp</button>
+        <button class="benefit-tab" type="button" data-benefit-tab="maternity">Chế độ thai sản</button>
+      </nav>
+
+      <section id="pensionBenefitPanel" class="benefit-panel" data-benefit-panel="pension">
       <form id="calculatorForm" novalidate>
         <section class="card">
           <div class="section-heading">
@@ -132,12 +140,12 @@
           </div>
 
           <div class="info-box">
-            Có thể <strong>nhập trực tiếp</strong> từng giai đoạn hoặc <strong>tải file/ảnh để hệ thống tự điền</strong>. Mỗi giai đoạn cần xác định được thời gian từ tháng đến tháng, chế độ tiền lương, cách ghi mức đóng và các phụ cấp thuộc căn cứ đóng BHXH nếu có.
+            Có thể <strong>nhập thủ công</strong> từng giai đoạn hoặc <strong>tải file/ảnh để hệ thống tự điền</strong>. Mỗi giai đoạn cần xác định được thời gian từ tháng đến tháng, chế độ tiền lương, cách ghi mức đóng và các phụ cấp thuộc căn cứ đóng BHXH nếu có.
           </div>
 
           <div class="entry-method-heading">
             <div>
-              <strong>Cách 1 · Nhập trực tiếp quá trình đóng</strong>
+              <strong>Cách 1 · Nhập thủ công quá trình đóng</strong>
               <span>Ngày dùng dạng <b>dd/mm/yyyy</b>; tháng dùng dạng <b>mm/yyyy</b>.</span>
             </div>
           </div>
@@ -199,7 +207,7 @@
               </div>
               <div class="upload-actions">
                 <button class="button dark" type="button" id="importAiBtn">Đọc dữ liệu từ file</button>
-                <p>Hệ thống đọc chung các tệp, ghép quá trình đóng và tự loại tháng trùng hệt nhau do ảnh chụp gối trang. Dữ liệu rõ ràng sẽ tự động điền vào bảng; chỉ nội dung chưa rõ mới yêu cầu xác nhận thêm. <strong>Chỉ khi đọc được ít nhất một giai đoạn hợp lệ mới trừ 01 lượt hồ sơ; đọc lỗi không mất lượt.</strong></p>
+                <p>Hệ thống đọc chung các tệp, ghép quá trình đóng và tự loại tháng trùng hệt nhau do ảnh chụp gối trang. Dữ liệu rõ ràng sẽ tự động điền vào bảng; chỉ nội dung chưa rõ mới yêu cầu xác nhận thêm. <strong>Chỉ khi đọc được ít nhất một giai đoạn hợp lệ mới trừ 01 lượt nhập bằng file/ảnh tự động; đọc lỗi không mất lượt.</strong></p>
               </div>
             </div>
 
@@ -308,11 +316,68 @@
           <span>Nhập thông tin người lao động và quá trình đóng BHXH để bắt đầu.</span>
         </div>
       </section>
+      </section>
+
+      <section id="oneTimeBenefitPanel" class="benefit-panel" data-benefit-panel="one_time" hidden>
+        <form id="oneTimeForm" class="card" novalidate>
+          <div class="section-heading"><div><span class="step">01</span><h2>Ước tính BHXH một lần</h2></div><p>Tính trên quá trình đóng BHXH đã nhập hoặc đã đọc từ file/ảnh ở tab Lương hưu.</p></div>
+          <div class="info-box">Trước tiên hãy nhập quá trình đóng tại tab <button class="inline-link-button" type="button" data-switch-benefit="pension">Lương hưu</button>. Nếu dữ liệu được đọc từ file/ảnh, lượt file đã được trừ khi đọc thành công và phép tính này không trừ thêm lượt nhập thủ công.</div>
+          <div class="form-grid three">
+            <label class="field"><span>Tháng dự kiến giải quyết</span><input id="oneTimeSettlementMonth" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" required /><small>Dùng để áp dụng hệ số điều chỉnh tại thời điểm tính.</small></label>
+            <label class="field"><span>Lý do/điều kiện đề nghị hưởng</span><select id="oneTimeReason"><option value="retirement_age">Đủ tuổi nhưng chưa đủ thời gian hưởng lương hưu</option><option value="emigration">Ra nước ngoài để định cư</option><option value="serious_condition">Bệnh nặng/suy giảm khả năng lao động thuộc diện luật định</option><option value="pre2025_after12months">Có thời gian đóng trước 01/07/2025, sau 12 tháng không tiếp tục đóng và chưa đủ 20 năm</option><option value="other">Trường hợp khác theo luật</option></select></label>
+            <label class="field"><span>Tổng số tiền đã đóng thực tế nếu dưới 01 năm</span><input id="oneTimeActualPaid" type="number" min="0" step="1000" placeholder="Chỉ cần nhập khi tổng thời gian < 12 tháng" /></label>
+          </div>
+          <div class="action-bar compact-action"><div><strong>Sử dụng dữ liệu quá trình đóng hiện có.</strong><span id="oneTimePeriodSummary">Chưa kiểm tra dữ liệu.</span></div><button class="button primary" type="submit">Tính BHXH một lần</button></div>
+        </form>
+        <section id="oneTimeResult" class="card result-card" aria-live="polite"><div class="empty-result"><strong>Chưa có kết quả</strong><span>Nhập quá trình đóng ở tab Lương hưu rồi thực hiện phép tính.</span></div></section>
+      </section>
+
+      <section id="unemploymentBenefitPanel" class="benefit-panel" data-benefit-panel="unemployment" hidden>
+        <form id="unemploymentForm" class="card" novalidate>
+          <div class="section-heading"><div><span class="step">01</span><h2>Ước tính trợ cấp thất nghiệp</h2></div><p>Áp dụng công thức Luật Việc làm 2025, có hiệu lực từ 01/01/2026.</p></div>
+          <div class="form-grid three">
+            <label class="field"><span>Tổng số tháng đóng BHTN chưa sử dụng</span><input id="unemploymentMonths" type="number" min="0" step="1" required /></label>
+            <label class="field"><span>Tháng cuối cùng đóng BHTN</span><input id="unemploymentLastMonth" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" required /></label>
+            <label class="field"><span>Vùng lương tối thiểu</span><select id="unemploymentRegion" required><option value="">Chọn vùng</option><option value="I">Vùng I</option><option value="II">Vùng II</option><option value="III">Vùng III</option><option value="IV">Vùng IV</option></select></label>
+          </div>
+          <div class="salary-six-block"><h3>06 tháng tiền lương đóng BHTN liền kề trước khi thất nghiệp</h3><div class="form-grid three" id="unemploymentSalaryGrid"><label class="field"><span>Tháng 1</span><input class="unemployment-salary" type="number" min="0" step="1000" placeholder="VND" required /></label><label class="field"><span>Tháng 2</span><input class="unemployment-salary" type="number" min="0" step="1000" placeholder="VND" required /></label><label class="field"><span>Tháng 3</span><input class="unemployment-salary" type="number" min="0" step="1000" placeholder="VND" required /></label><label class="field"><span>Tháng 4</span><input class="unemployment-salary" type="number" min="0" step="1000" placeholder="VND" required /></label><label class="field"><span>Tháng 5</span><input class="unemployment-salary" type="number" min="0" step="1000" placeholder="VND" required /></label><label class="field"><span>Tháng 6</span><input class="unemployment-salary" type="number" min="0" step="1000" placeholder="VND" required /></label></div></div>
+          <div class="action-bar compact-action"><div><strong>Kết quả là ước tính.</strong><span>Điều kiện hưởng thực tế còn phụ thuộc chấm dứt hợp đồng, thời hạn nộp hồ sơ và tình trạng việc làm.</span></div><button class="button primary" type="submit">Tính trợ cấp thất nghiệp</button></div>
+        </form>
+        <section id="unemploymentResult" class="card result-card" aria-live="polite"><div class="empty-result"><strong>Chưa có kết quả</strong><span>Nhập thời gian đóng BHTN và 06 tháng lương gần nhất.</span></div></section>
+      </section>
+
+      <section id="maternityBenefitPanel" class="benefit-panel" data-benefit-panel="maternity" hidden>
+        <form id="maternityForm" class="card" novalidate>
+          <div class="section-heading"><div><span class="step">01</span><h2>Ước tính chế độ thai sản</h2></div><p>Hỗ trợ các trường hợp phổ biến theo Luật BHXH 2024.</p></div>
+          <div class="form-grid three">
+            <label class="field"><span>Loại tham gia</span><select id="maternityScheme"><option value="compulsory">BHXH bắt buộc</option><option value="voluntary">BHXH tự nguyện</option></select></label>
+            <label class="field"><span>Trường hợp</span><select id="maternityCase"><option value="female_birth">Lao động nữ sinh con</option><option value="male_birth">Lao động nam có vợ sinh con</option><option value="prenatal">Khám thai</option><option value="pregnancy_loss">Sảy thai/phá thai/thai chết/thai ngoài tử cung</option><option value="contraception_iud">Đặt dụng cụ tránh thai</option><option value="contraception_sterilization">Triệt sản</option></select></label>
+            <label class="field"><span>Tháng xảy ra sự kiện</span><input id="maternityEventMonth" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" required /></label>
+          </div>
+          <div class="form-grid four">
+            <label class="field"><span>Số con</span><input id="maternityChildren" type="number" min="1" step="1" value="1" /></label>
+            <label class="field"><span>Số tháng đóng trong 12 tháng trước sự kiện</span><input id="maternityMonths12" type="number" min="0" max="12" step="1" value="6" /></label>
+            <label class="field"><span>Số tháng đóng trong 24 tháng trước sinh</span><input id="maternityMonths24" type="number" min="0" max="24" step="1" value="0" /></label>
+            <label class="field"><span>Tổng số tháng đã đóng trước đó</span><input id="maternityTotalPrior" type="number" min="0" step="1" value="0" /></label>
+          </div>
+          <div id="maternitySpecialOptions" class="form-grid three">
+            <label class="check-field"><input id="maternityPregnancyLeave" type="checkbox" /><span>Nghỉ dưỡng thai theo chỉ định và đã đóng từ đủ 12 tháng trước đó</span></label>
+            <label class="check-field"><input id="maternityInfertility" type="checkbox" /><span>Phải nghỉ việc để điều trị vô sinh trước khi sinh</span></label>
+            <label class="check-field"><input id="maternitySurgeryUnder32" type="checkbox" /><span>Vợ sinh phẫu thuật hoặc con dưới 32 tuần tuổi</span></label>
+            <label class="check-field"><input id="maternityFatherLump" type="checkbox" /><span>Người cha đủ điều kiện nhận trợ cấp một lần do mẹ không đủ điều kiện</span></label>
+            <label class="field"><span>Tuổi thai (tuần)</span><input id="maternityWeeks" type="number" min="0" step="1" value="0" /></label>
+            <label class="field"><span>Số ngày nghỉ theo chỉ định/thực tế</span><input id="maternityDays" type="number" min="0" step="1" value="0" /></label>
+          </div>
+          <div id="maternitySalaryBlock" class="salary-six-block"><h3>Tiền lương đóng BHXH bắt buộc gần nhất trước khi nghỉ</h3><p class="table-note">Nhập tối đa 06 tháng gần nhất. Trường hợp luật cho phép người tham gia chưa đủ 06 tháng, hệ thống bình quân các tháng thực tế đã nhập.</p><div class="form-grid three" id="maternitySalaryGrid"><label class="field"><span>Tháng 1</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 2</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 3</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 4</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 5</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 6</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label></div></div>
+          <div class="action-bar compact-action"><div><strong>Công cụ ước tính các trường hợp phổ biến.</strong><span>Hồ sơ mang thai hộ, nhận con nuôi và trường hợp đặc biệt cần đối chiếu trực tiếp quy định/hồ sơ.</span></div><button class="button primary" type="submit">Tính chế độ thai sản</button></div>
+        </form>
+        <section id="maternityResult" class="card result-card" aria-live="polite"><div class="empty-result"><strong>Chưa có kết quả</strong><span>Chọn trường hợp và nhập dữ liệu cần thiết.</span></div></section>
+      </section>
     </section>
 
     <aside class="side-column">
       <section class="card compact-card sticky-card">
-        <h3>Nguyên tắc tính lương hưu và cơ sở pháp lý</h3>
+        <h3>Cơ sở pháp lý và nguyên tắc tính</h3>
         <ol class="principles">
           <li><strong>Tuổi nghỉ hưu:</strong> tự xác định theo lộ trình tại Nghị định 135/2020/NĐ-CP.</li>
           <li><strong>Điều kiện và tỷ lệ hưởng:</strong> áp dụng Luật BHXH số 41/2024/QH15, có hiệu lực từ 01/07/2025.</li>
@@ -320,6 +385,9 @@
           <li><strong>Lương Nhà nước:</strong> cộng các khoản thuộc căn cứ đóng như phụ cấp chức vụ, thâm niên vượt khung, thâm niên nghề và hệ số chênh lệch bảo lưu nếu thực tế có hưởng.</li>
           <li><strong>Nâng bậc dự kiến:</strong> tự nhận diện từ lịch sử đổi hệ số và các thang hệ số phổ biến theo Nghị định 204/2004/NĐ-CP; chu kỳ 24/36/60 tháng áp dụng theo quy định về nâng bậc thường xuyên. Việc nâng bậc thực tế vẫn phụ thuộc ngạch/chức danh, tiêu chuẩn và quyết định của cơ quan có thẩm quyền.</li>
           <li><strong>Mức lương cơ sở:</strong> tự áp dụng các mốc đã tích hợp; từ 01/07/2026 là 2.530.000 đồng/tháng.</li>
+        <li><strong>BHXH một lần:</strong> ước tính theo Điều 70/102 và mức bình quân theo Luật BHXH 2024.</li>
+          <li><strong>Trợ cấp thất nghiệp:</strong> áp dụng Luật Việc làm 2025; từ 2026 trần bằng 5 lần mức lương tối thiểu vùng.</li>
+          <li><strong>Thai sản:</strong> áp dụng các điều 50–59 và 94–95 Luật BHXH 2024 cho các trường hợp được công cụ hỗ trợ.</li>
         </ol>
 
       </section>
@@ -493,5 +561,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script type="module" src="./js/account.js"></script>
   <script type="module" src="./js/app.js"></script>
+  <script type="module" src="./js/benefits-ui.js"></script>
 </body>
 </html>

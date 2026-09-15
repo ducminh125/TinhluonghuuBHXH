@@ -204,6 +204,14 @@ export async function getPayosPayment(id) {
   return payload.data;
 }
 
+export async function cancelPayosPayment(id, cancellationReason = 'Admin cancelled') {
+  const payload = await payosFetch(`/v2/payment-requests/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify({ cancellationReason: String(cancellationReason || 'Admin cancelled').slice(0, 255) })
+  });
+  return payload.data;
+}
+
 export function verifyPayosWebhook(payload) {
   if (!payosConfigured) throw Object.assign(new Error('payOS chưa được cấu hình.'), { code: 'PAYOS_NOT_CONFIGURED' });
   const data = payload?.data || {};

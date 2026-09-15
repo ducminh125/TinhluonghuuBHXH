@@ -290,45 +290,57 @@ function historyAllowance(p={}){
   if(Number(p.allowanceVnd||0))parts.push(`PC ${historyMoney(p.allowanceVnd)}`);
   return parts.join(' · ')||'—';
 }
+const HISTORY_BENEFIT_LABELS={pension:'Lương hưu',one_time:'BHXH một lần',unemployment:'Trợ cấp thất nghiệp',maternity:'Chế độ thai sản'};
+const HISTORY_ONE_TIME_REASON_LABELS={retirement_age:'Đủ tuổi nhưng chưa đủ thời gian hưởng lương hưu',emigration:'Ra nước ngoài để định cư',serious_condition:'Bệnh nặng/suy giảm khả năng lao động thuộc diện luật định',pre2025_after12months:'Có thời gian đóng trước 01/07/2025, sau 12 tháng không tiếp tục đóng và chưa đủ 20 năm',other:'Trường hợp khác theo luật'};
+const HISTORY_MATERNITY_CASE_LABELS={female_birth:'Lao động nữ sinh con',male_birth:'Lao động nam có vợ sinh con',prenatal:'Khám thai',pregnancy_loss:'Sảy thai/phá thai/thai chết/thai ngoài tử cung',contraception_iud:'Đặt dụng cụ tránh thai',contraception_sterilization:'Triệt sản'};
+function historySalaryList(values=[]){const nums=(Array.isArray(values)?values:[]).map(Number).filter(v=>Number.isFinite(v)&&v>0);return nums.length?nums.map((v,i)=>`T${i+1}: ${historyMoney(v)}`).join(' · '):'—';}
+function historyBenefitType(h){const input=h.input_json||{};const saved=h.result_json||{};return saved.benefitType||input.benefitType||'pension';}
 function historySummary(h){
-  const saved=h.result_json||{};const avg=saved.avg||{};const result=saved.result||{};
-  return {monthly:result.monthlyPension,rate:result.finalRate,totalMonths:avg.totalMonths||result.totalMonths,pensionStart:result.pensionStartMonth};
+  const saved=h.result_json||{};const type=historyBenefitType(h);
+  if(type==='one_time')return {type,line:`${historyMoney(saved.estimatedAmount)} · ${historyDuration(saved.totalMonths)} · giải quyết ${historyMonth(saved.settlementMonth)}`};
+  if(type==='unemployment')return {type,line:`${historyMoney(saved.monthlyBenefit)}/tháng · ${saved.durationMonths||0} tháng · tổng ${historyMoney(saved.estimatedTotal)}`};
+  if(type==='maternity')return {type,line:`${historyMoney(saved.estimatedTotal)} · ${saved.durationLabel||'—'} · ${saved.eligible===false?'chưa đủ điều kiện':'ước tính'}`};
+  const avg=saved.avg||{};const result=saved.result||{};
+  return {type,line:`${historyMoney(result.monthlyPension)} · ${historyPercent(result.finalRate)} · ${historyDuration(avg.totalMonths||result.totalMonths)}`};
 }
 function closeHistoryDetail(){currentHistoryId=null;hide($('historyDetailPanel'));const c=$('historyDetailContent');if(c)c.innerHTML='';}
+function periodTableHtml(periods=[]){
+  const rows=periods.length?periods.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(historyMonth(p.from))} → ${esc(historyMonth(p.to))}</td><td>${esc(HISTORY_REGIME_LABELS[p.regime]||p.regime||'—')}</td><td>${esc(historyPeriodValue(p))}</td><td>${esc(historyAllowance(p))}</td><td>${esc(p.note||'—')}</td></tr>`).join(''):'<tr><td colspan="6">Bản lưu này không có chi tiết các giai đoạn đóng.</td></tr>';
+  return `<div class="history-periods-wrap"><h4>Quá trình đóng đã lưu</h4><div class="table-wrap"><table class="history-detail-table"><thead><tr><th>#</th><th>Giai đoạn</th><th>Chế độ</th><th>Lương/thu nhập</th><th>Phụ cấp tính đóng</th><th>Ghi chú</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
 function renderHistoryDetail(record){
   currentHistoryId=record.id;
-  const input=record.input_json||{};const person=input.person||{};const periods=Array.isArray(input.periods)?input.periods:[];
-  const saved=record.result_json||{};const avg=saved.avg||{};const result=saved.result||{};const calcInput=saved.input||{};
+  const input=record.input_json||{};const saved=record.result_json||{};const type=historyBenefitType(record);
   const title=$('historyDetailTitle'),meta=$('historyDetailMeta'),host=$('historyDetailContent'),panel=$('historyDetailPanel');
-  if(title)title.textContent=record.title||'Kết quả lương hưu';
-  if(meta)meta.textContent=`Lưu lúc ${new Date(record.created_at).toLocaleString('vi-VN')} · ${record.mode==='file'?'Nhập bằng file/ảnh tự động':'Nhập thủ công'} · Mã lưu ${String(record.id||'').slice(0,8).toUpperCase()}`;
-  const first=periods.map(p=>p.from).filter(Boolean).sort()[0]||avg.firstCompulsoryYm||'';
-  const last=periods.map(p=>p.to).filter(Boolean).sort().at(-1)||person.retirementMonth||'';
-  const periodRows=periods.length?periods.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(historyMonth(p.from))} → ${esc(historyMonth(p.to))}</td><td>${esc(HISTORY_REGIME_LABELS[p.regime]||p.regime||'—')}</td><td>${esc(historyPeriodValue(p))}</td><td>${esc(historyAllowance(p))}</td><td>${esc(p.note||'—')}</td></tr>`).join(''):'<tr><td colspan="6">Bản lưu cũ không có chi tiết các giai đoạn đóng.</td></tr>';
-  if(host)host.innerHTML=`
-    <div class="history-result-grid">
-      <article class="metric primary"><span>Lương hưu ước tính/tháng</span><strong>${esc(historyMoney(result.monthlyPension))}</strong></article>
-      <article class="metric"><span>Mức bình quân</span><strong>${esc(historyMoney(avg.averageBase??calcInput.averageBase))}</strong></article>
-      <article class="metric"><span>Tỷ lệ hưởng</span><strong>${esc(historyPercent(result.finalRate))}</strong></article>
-      <article class="metric"><span>Tổng thời gian đóng</span><strong>${esc(historyDuration(avg.totalMonths??result.totalMonths))}</strong></article>
-      <article class="metric"><span>Tháng bắt đầu hưởng</span><strong>${esc(historyMonth(result.pensionStartMonth))}</strong></article>
-      <article class="metric"><span>Điều kiện hưởng</span><strong>${result.eligible===true?'Đủ theo dữ liệu đã nhập':result.eligible===false?'Chưa đủ điều kiện':'—'}</strong></article>
-    </div>
-    <div class="history-info-grid">
-      <div><span>Giới tính</span><strong>${person.sex==='male'?'Nam':person.sex==='female'?'Nữ':'—'}</strong></div>
-      <div><span>Ngày sinh</span><strong>${esc(historyDate(person.birthDate))}</strong></div>
-      <div><span>Trường hợp nghỉ hưu</span><strong>${esc(HISTORY_CASE_LABELS[person.retirementCase]||person.retirementCase||'—')}</strong></div>
-      <div><span>Tháng nghỉ hưu dùng để tính</span><strong>${esc(historyMonth(person.retirementMonth))}</strong></div>
-      <div><span>Khoảng dữ liệu đã lưu</span><strong>${esc(historyMonth(first))} → ${esc(historyMonth(last))}</strong></div>
-      <div><span>Số giai đoạn đã lưu</span><strong>${periods.length}</strong></div>
-      <div><span>Tự bổ sung đến khi nghỉ hưu</span><strong>${input.autoExtend?'Có':'Không'}</strong></div>
-      <div><span>Thời gian tự bổ sung</span><strong>${esc(historyDuration(avg.projectedMonths||0))}</strong></div>
-    </div>
-    <div class="history-periods-wrap"><h4>Quá trình đóng đã lưu</h4><div class="table-wrap"><table class="history-detail-table"><thead><tr><th>#</th><th>Giai đoạn</th><th>Chế độ</th><th>Lương/thu nhập</th><th>Phụ cấp tính đóng</th><th>Ghi chú</th></tr></thead><tbody>${periodRows}</tbody></table></div></div>
-    ${Array.isArray(result.errors)&&result.errors.length?`<div class="alert error"><strong>Điểm cần lưu ý:</strong><ul>${result.errors.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
-    <p class="history-disclaimer">Đây là bản dữ liệu/kết quả tại thời điểm bạn bấm lưu. Kết quả chính thức vẫn phụ thuộc dữ liệu BHXH và quy định có hiệu lực khi giải quyết chế độ.</p>`;
+  if(title)title.textContent=record.title||HISTORY_BENEFIT_LABELS[type]||'Kết quả đã lưu';
+  if(meta)meta.textContent=`Lưu lúc ${new Date(record.created_at).toLocaleString('vi-VN')} · ${record.mode==='file'?'Nhập bằng file/ảnh tự động':'Nhập thủ công'} · ${HISTORY_BENEFIT_LABELS[type]||type} · Mã lưu ${String(record.id||'').slice(0,8).toUpperCase()}`;
+
+  let html='';
+  if(type==='one_time'){
+    const periods=Array.isArray(input.periods)?input.periods:[];
+    html=`<div class="history-result-grid">
+      <article class="metric primary"><span>Mức hưởng ước tính</span><strong>${esc(historyMoney(saved.estimatedAmount))}</strong></article>
+      <article class="metric"><span>Mức bình quân</span><strong>${esc(historyMoney(saved.averageBase))}</strong></article>
+      <article class="metric"><span>Tổng thời gian đóng</span><strong>${esc(historyDuration(saved.totalMonths))}</strong></article>
+      <article class="metric"><span>Phần trước 2014</span><strong>${esc(String(saved.pre2014Years??0))} năm quy đổi</strong></article>
+      <article class="metric"><span>Phần từ 2014</span><strong>${esc(String(saved.post2014Years??0))} năm quy đổi</strong></article>
+      <article class="metric"><span>Tháng giải quyết</span><strong>${esc(historyMonth(saved.settlementMonth))}</strong></article>
+    </div><div class="history-info-grid"><div><span>Lý do/nhóm điều kiện đã chọn</span><strong>${esc(HISTORY_ONE_TIME_REASON_LABELS[saved.eligibilityReason||input.eligibilityReason]||saved.eligibilityReason||input.eligibilityReason||'—')}</strong></div><div><span>Số giai đoạn dữ liệu</span><strong>${periods.length}</strong></div><div><span>Dưới 01 năm</span><strong>${saved.underOneYear?'Có':'Không'}</strong></div><div><span>Mức tối đa nếu dưới 01 năm</span><strong>${esc(historyMoney(saved.maximumAmount))}</strong></div></div>${periodTableHtml(periods)}${historyWarnings(saved)}`;
+  }else if(type==='unemployment'){
+    const detail=input.input||{};
+    html=`<div class="history-result-grid"><article class="metric primary"><span>Mức hưởng/tháng</span><strong>${esc(historyMoney(saved.monthlyBenefit))}</strong></article><article class="metric"><span>Số tháng hưởng</span><strong>${esc(String(saved.durationMonths||0))} tháng</strong></article><article class="metric"><span>Tổng ước tính</span><strong>${esc(historyMoney(saved.estimatedTotal))}</strong></article><article class="metric"><span>Bình quân 06 tháng</span><strong>${esc(historyMoney(saved.averageSix))}</strong></article><article class="metric"><span>Trần/tháng</span><strong>${esc(historyMoney(saved.ceiling))}</strong></article><article class="metric"><span>Thời gian đóng BHTN</span><strong>${esc(String(saved.eligibleContributionMonths||0))} tháng</strong></article></div><div class="history-info-grid"><div><span>Tháng cuối đóng BHTN</span><strong>${esc(historyMonth(saved.lastContributionMonth))}</strong></div><div><span>Vùng lương tối thiểu</span><strong>Vùng ${esc(saved.region||'—')}</strong></div><div><span>Lương tối thiểu vùng</span><strong>${esc(historyMoney(saved.minimumWage))}</strong></div><div><span>Đủ tối thiểu về thời gian đóng</span><strong>${saved.eligibleByMonths?'Có':'Chưa'}</strong></div><div><span>06 mức lương đã nhập</span><strong>${esc(historySalaryList(detail.lastSixSalaries))}</strong></div></div>${historyWarnings(saved)}`;
+  }else if(type==='maternity'){
+    const detail=input.input||{};
+    html=`<div class="history-result-grid"><article class="metric primary"><span>Tổng mức hưởng ước tính</span><strong>${esc(historyMoney(saved.estimatedTotal))}</strong></article><article class="metric"><span>Mức trợ cấp tháng</span><strong>${esc(historyMoney(saved.monthlyBenefit))}</strong></article><article class="metric"><span>Thời gian tính hưởng</span><strong>${esc(saved.durationLabel||'—')}</strong></article><article class="metric"><span>Trợ cấp một lần</span><strong>${esc(historyMoney(saved.lumpSum))}</strong></article><article class="metric"><span>Mức hưởng/ngày</span><strong>${esc(historyMoney(saved.dailyBenefit))}</strong></article><article class="metric"><span>Điều kiện theo dữ liệu</span><strong>${saved.eligible===false?'Chưa đạt':'Đạt/không áp dụng'}</strong></article></div><div class="history-info-grid"><div><span>Loại tham gia</span><strong>${saved.scheme==='voluntary'?'BHXH tự nguyện':'BHXH bắt buộc'}</strong></div><div><span>Trường hợp</span><strong>${esc(HISTORY_MATERNITY_CASE_LABELS[saved.caseType]||saved.caseType||'—')}</strong></div><div><span>Tháng sự kiện</span><strong>${esc(historyMonth(saved.eventMonth))}</strong></div><div><span>Số con</span><strong>${esc(String(saved.children||1))}</strong></div><div><span>Mức tham chiếu</span><strong>${esc(historyMoney(saved.referenceLevel))}</strong></div><div><span>Tháng đóng trong 12 tháng</span><strong>${esc(String(saved.months12??'—'))}</strong></div><div><span>Tháng đóng trong 24 tháng</span><strong>${esc(String(saved.months24??'—'))}</strong></div><div><span>Mức lương đã nhập</span><strong>${esc(historySalaryList(detail.salaryMonths))}</strong></div></div>${saved.eligibilityRule?`<div class="alert info"><strong>Điều kiện đã áp dụng:</strong> ${esc(saved.eligibilityRule)}</div>`:''}${historyWarnings(saved)}`;
+  }else{
+    const person=input.person||{};const periods=Array.isArray(input.periods)?input.periods:[];const avg=saved.avg||{};const result=saved.result||{};const calcInput=saved.input||{};
+    const first=periods.map(p=>p.from).filter(Boolean).sort()[0]||avg.firstCompulsoryYm||'';const last=periods.map(p=>p.to).filter(Boolean).sort().at(-1)||person.retirementMonth||'';
+    html=`<div class="history-result-grid"><article class="metric primary"><span>Lương hưu ước tính/tháng</span><strong>${esc(historyMoney(result.monthlyPension))}</strong></article><article class="metric"><span>Mức bình quân</span><strong>${esc(historyMoney(avg.averageBase??calcInput.averageBase))}</strong></article><article class="metric"><span>Tỷ lệ hưởng</span><strong>${esc(historyPercent(result.finalRate))}</strong></article><article class="metric"><span>Tổng thời gian đóng</span><strong>${esc(historyDuration(avg.totalMonths??result.totalMonths))}</strong></article><article class="metric"><span>Tháng bắt đầu hưởng</span><strong>${esc(historyMonth(result.pensionStartMonth))}</strong></article><article class="metric"><span>Điều kiện hưởng</span><strong>${result.eligible===true?'Đủ theo dữ liệu đã nhập':result.eligible===false?'Chưa đủ điều kiện':'—'}</strong></article></div><div class="history-info-grid"><div><span>Giới tính</span><strong>${person.sex==='male'?'Nam':person.sex==='female'?'Nữ':'—'}</strong></div><div><span>Ngày sinh</span><strong>${esc(historyDate(person.birthDate))}</strong></div><div><span>Trường hợp nghỉ hưu</span><strong>${esc(HISTORY_CASE_LABELS[person.retirementCase]||person.retirementCase||'—')}</strong></div><div><span>Tháng nghỉ hưu dùng để tính</span><strong>${esc(historyMonth(person.retirementMonth))}</strong></div><div><span>Khoảng dữ liệu đã lưu</span><strong>${esc(historyMonth(first))} → ${esc(historyMonth(last))}</strong></div><div><span>Số giai đoạn đã lưu</span><strong>${periods.length}</strong></div><div><span>Tự bổ sung đến khi nghỉ hưu</span><strong>${input.autoExtend?'Có':'Không'}</strong></div><div><span>Thời gian tự bổ sung</span><strong>${esc(historyDuration(avg.projectedMonths||0))}</strong></div></div>${periodTableHtml(periods)}${Array.isArray(result.errors)&&result.errors.length?`<div class="alert error"><strong>Điểm cần lưu ý:</strong><ul>${result.errors.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}`;
+  }
+  if(host)host.innerHTML=html+`<p class="history-disclaimer">Đây là bản dữ liệu/kết quả tại thời điểm bạn bấm lưu. Kết quả chính thức phụ thuộc hồ sơ được cơ quan có thẩm quyền ghi nhận và quy định có hiệu lực khi giải quyết chế độ.</p>`;
   show(panel);panel?.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
+function historyWarnings(saved){const warnings=[...(Array.isArray(saved.warnings)?saved.warnings:[]),...(Array.isArray(saved.notes)?saved.notes:[])];return warnings.length?`<div class="alert info"><strong>Lưu ý:</strong><ul>${warnings.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'';}
 async function openHistoryDetail(id){
   if(!session||!id)return;const host=$('historyDetailContent');show($('historyDetailPanel'));if(host)host.innerHTML='<p>Đang tải chi tiết lịch sử…</p>';
   try{const data=await jsonResponse(await authorizedFetch(`/api/history/${encodeURIComponent(id)}`));renderHistoryDetail(data.history);}
@@ -345,7 +357,7 @@ async function loadHistory(){
   host.innerHTML='<p>Đang tải lịch sử…</p>';
   try{
     const data=await jsonResponse(await authorizedFetch('/api/history?limit=12'));
-    host.innerHTML=(data.history||[]).map(h=>{const sum=historySummary(h);return `<div class="account-list-row history-list-row"><span><strong>${esc(h.title||'Kết quả lương hưu')}</strong><small>${new Date(h.created_at).toLocaleString('vi-VN')} · ${h.mode==='file'?'File/ảnh tự động':'Thủ công'}</small><small>${historyMoney(sum.monthly)} · ${historyPercent(sum.rate)} · ${historyDuration(sum.totalMonths)}</small></span><button class="button secondary small history-open" data-history="${esc(h.id)}" type="button">Tra cứu</button></div>`;}).join('')||'<p>Chưa lưu kết quả nào.</p>';
+    host.innerHTML=(data.history||[]).map(h=>{const sum=historySummary(h);return `<div class="account-list-row history-list-row"><span><strong>${esc(h.title||HISTORY_BENEFIT_LABELS[sum.type]||'Kết quả đã lưu')}</strong><small>${new Date(h.created_at).toLocaleString('vi-VN')} · ${h.mode==='file'?'File/ảnh tự động':'Thủ công'} · ${esc(HISTORY_BENEFIT_LABELS[sum.type]||sum.type)}</small><small>${esc(sum.line)}</small></span><button class="button secondary small history-open" data-history="${esc(h.id)}" type="button">Tra cứu</button></div>`;}).join('')||'<p>Chưa lưu kết quả nào.</p>';
     host.querySelectorAll('.history-open').forEach(btn=>btn.addEventListener('click',()=>openHistoryDetail(btn.dataset.history)));
   }catch(e){host.innerHTML=`<div class="alert error">${esc(e.code==='DATABASE_SETUP_REQUIRED'?'Chức năng lịch sử chưa được quản trị viên cài đặt đầy đủ.':e.message)}</div>`;}
 }

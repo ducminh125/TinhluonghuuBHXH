@@ -1,9 +1,9 @@
 {
   "name": "vn-pension-calculator",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "private": true,
   "type": "module",
-  "description": "Vietnam pension calculator based on contribution history, allowances, multi-file AI extraction, and retirement projections.",
+  "description": "Vietnam social-insurance benefits calculator: pension, one-time social insurance, unemployment and maternity, with account credits, history and multi-file import.",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",

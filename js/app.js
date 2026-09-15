@@ -839,3 +839,10 @@ form.addEventListener("submit", async event => {
 
 addPeriodRow();
 updateRetirementCase();
+
+// Shared state for the additional social-insurance benefit tabs.
+window.PensionCalculatorState = {
+  getPeriods: () => getPeriods({ includeBlank: false }),
+  getEntryMode: () => lastEntryMode,
+  getImportJobId: () => lastImportJobId
+};

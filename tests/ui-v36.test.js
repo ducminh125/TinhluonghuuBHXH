@@ -8,7 +8,7 @@ const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,'..');
 const read=f=>fs.readFileSync(path.join(root,f),'utf8');
 
-test('commercial credit labels use v3.6 terminology',()=>{
+test('commercial credit labels use current terminology',()=>{
   const account=read('js/account.js');
   assert.match(account,/lượt nhập thủ công/);
   assert.match(account,/lượt nhập bằng file\/ảnh tự động/);
