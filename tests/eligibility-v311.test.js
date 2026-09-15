@@ -31,10 +31,10 @@ test('v3.11 UI exposes eligibility confirmations and special maternity descripti
   for(const id of [
     'oneTimeStoppedParticipation','oneTimeStopped12Months','oneTimeSeriousConditionConfirmed','unemploymentLookbackMonths','unemploymentContractGroup',
     'unemploymentWasContributing','unemploymentLawfulTermination','unemploymentFiledWithin3Months','unemploymentNoExclusion',
-    'maternityActiveCompulsory','maternityMedicalFacility'
+    'maternityActiveCompulsory','maternityMedicalFacility','maternityFemaleCondition','maternityWifeSurgery','maternityChildUnder32','maternityMotherNotEligible'
   ]) assert.match(html,new RegExp(`id="${id}"`));
   for(const phrase of [
-    'Nghỉ dưỡng thai theo chỉ định','điều trị vô sinh','Vợ sinh phẫu thuật hoặc con dưới 32 tuần tuổi','Cha nhận trợ cấp một lần do mẹ không đủ điều kiện'
+    'Phải nghỉ việc để dưỡng thai theo chỉ định','điều trị vô sinh','Vợ sinh phải phẫu thuật','Sinh con dưới 32 tuần tuổi','Mẹ không đủ điều kiện hưởng chế độ thai sản khi sinh con'
   ]) assert.match(html,new RegExp(phrase,'i'));
 });
 

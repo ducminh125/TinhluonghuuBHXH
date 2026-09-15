@@ -1,4 +1,4 @@
-# VN Social Insurance Benefits Calculator v3.11
+# VN Social Insurance Benefits Calculator v3.12
 
 Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 - lương hưu;
@@ -9,6 +9,17 @@ Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 Hệ thống dùng Supabase cho tài khoản/database, payOS cho VietQR + webhook thanh toán, và ShopAIKey chỉ cho hồ sơ ảnh/PDF cần model. Phép tính quyền lợi do engine quy tắc trong source thực hiện, không giao cho AI tự quyết định số tiền.
 
 > Kết quả là tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH, hồ sơ thực tế và văn bản có hiệu lực tại thời điểm giải quyết.
+
+
+## Mới trong v3.12 — làm rõ điều kiện thai sản theo đúng trường hợp
+
+- Không còn hiển thị 4 checkbox đặc biệt cùng lúc. Chỉ hiện dữ kiện liên quan đến **trường hợp thai sản đang chọn**.
+- **Lao động nữ sinh con:** dùng một trường “Tình trạng trước khi sinh” với 3 lựa chọn loại trừ nhau: thông thường; phải nghỉ việc để dưỡng thai theo chỉ định; phải nghỉ việc để điều trị vô sinh. Engine tự áp dụng lần lượt điều kiện 6/12 tháng, 12 tháng trước đó + 3/12 tháng, hoặc 6/24 tháng.
+- **Lao động nam có vợ sinh con:** chỉ hiện các dữ kiện ảnh hưởng trực tiếp đến kết quả: vợ sinh phải phẫu thuật; sinh con dưới 32 tuần tuổi; mẹ không đủ điều kiện hưởng thai sản. Hệ thống tự kiểm tra thời gian đóng của cha để tính trợ cấp một lần.
+- Tách “vợ sinh phải phẫu thuật” và “sinh con dưới 32 tuần tuổi” để không áp dụng nhầm quy tắc 14 ngày của sinh đôi phải phẫu thuật cho trường hợp chỉ sinh non.
+- Các trường số tháng đóng 12/24 tháng, tổng thời gian đã đóng, tuổi thai, số ngày nghỉ và khối tiền lương được **ẩn/hiện theo ngữ cảnh**, giảm dữ liệu thừa và tránh người dùng tick nhầm.
+- Giữ tương thích với payload cũ (`pregnancyLeave`, `infertilityTreatment`, `fatherLumpEligible`, `surgeryOrUnder32`) để không làm gián đoạn các request cũ trong lúc trình duyệt còn cache.
+- Không thay đổi database schema, payOS hoặc hệ thống lượt sử dụng.
 
 
 ## Mới trong v3.11 — kiểm tra điều kiện hưởng trước khi trừ lượt

@@ -370,30 +370,40 @@
             <label class="field"><span>Trường hợp</span><select id="maternityCase"><option value="female_birth">Lao động nữ sinh con</option><option value="male_birth">Lao động nam có vợ sinh con</option><option value="prenatal">Khám thai</option><option value="pregnancy_loss">Sảy thai/phá thai/thai chết/thai ngoài tử cung</option><option value="contraception_iud">Đặt dụng cụ tránh thai</option><option value="contraception_sterilization">Triệt sản</option></select></label>
             <label class="field"><span>Tháng xảy ra sự kiện</span><input id="maternityEventMonth" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" required /></label>
           </div>
-          <div class="form-grid four">
-            <label class="field"><span>Số con</span><input id="maternityChildren" type="number" min="1" step="1" value="1" /></label>
-            <label class="field"><span>Số tháng đóng trong 12 tháng trước sự kiện</span><input id="maternityMonths12" type="number" min="0" max="12" step="1" value="6" /></label>
-            <label class="field"><span>Số tháng đóng trong 24 tháng trước sinh</span><input id="maternityMonths24" type="number" min="0" max="24" step="1" value="0" /></label>
-            <label class="field"><span>Tổng số tháng đã đóng trước đó</span><input id="maternityTotalPrior" type="number" min="0" step="1" value="0" /></label>
+          <div class="form-grid four" id="maternityContributionFields">
+            <label class="field" id="maternityChildrenRow"><span>Số con</span><input id="maternityChildren" type="number" min="1" step="1" value="1" /></label>
+            <label class="field" id="maternityMonths12Row"><span>Số tháng đóng trong 12 tháng trước sự kiện</span><input id="maternityMonths12" type="number" min="0" max="12" step="1" value="6" /></label>
+            <label class="field" id="maternityMonths24Row"><span>Số tháng đóng trong 24 tháng trước sinh</span><input id="maternityMonths24" type="number" min="0" max="24" step="1" value="0" /></label>
+            <label class="field" id="maternityTotalPriorRow"><span>Tổng số tháng đã đóng BHXH bắt buộc trước đó</span><input id="maternityTotalPrior" type="number" min="0" step="1" value="0" /></label>
           </div>
-          <div class="eligibility-guide">
-            <div class="section-subheading"><h3>Điều kiện đặc biệt cần lưu ý</h3><p>Chọn đúng trường hợp thực tế; hệ thống sẽ kiểm tra trước khi tính và không trừ lượt nếu chưa đủ điều kiện.</p></div>
-            <div class="eligibility-guide-list">
-              <div><strong>Nghỉ dưỡng thai theo chỉ định</strong><span>Đã đóng BHXH bắt buộc từ đủ 12 tháng trở lên trước đó và có từ đủ 03 tháng đóng trong 12 tháng liền kề trước khi sinh.</span></div>
-              <div><strong>Phải nghỉ việc để điều trị vô sinh trước khi sinh</strong><span>Cần đóng BHXH bắt buộc từ đủ 06 tháng trong 24 tháng liền kề trước khi sinh.</span></div>
-              <div><strong>Vợ sinh phẫu thuật hoặc con dưới 32 tuần tuổi</strong><span>Người cha đang tham gia BHXH bắt buộc được áp dụng số ngày nghỉ đặc biệt theo số con và tình trạng sinh.</span></div>
-              <div><strong>Cha nhận trợ cấp một lần do mẹ không đủ điều kiện</strong><span>Người cha cần đóng BHXH bắt buộc từ đủ 06 tháng trong 12 tháng trước khi sinh.</span></div>
+
+          <div id="maternityFemaleSpecial" class="eligibility-guide" hidden>
+            <div class="section-subheading"><h3>Điều kiện trước khi sinh</h3><p>Chọn đúng tình trạng thực tế. Hệ thống sẽ tự áp dụng điều kiện đóng BHXH tương ứng.</p></div>
+            <label class="field">
+              <span>Tình trạng trước khi sinh</span>
+              <select id="maternityFemaleCondition">
+                <option value="standard">Không thuộc trường hợp đặc biệt</option>
+                <option value="pregnancy_leave">Phải nghỉ việc để dưỡng thai theo chỉ định</option>
+                <option value="infertility">Phải nghỉ việc để điều trị vô sinh trước khi sinh</option>
+              </select>
+              <small id="maternityFemaleConditionHelp">Điều kiện thông thường: đóng BHXH bắt buộc từ đủ 06 tháng trong 12 tháng liền kề trước khi sinh.</small>
+            </label>
+          </div>
+
+          <div id="maternityMaleSpecial" class="eligibility-guide" hidden>
+            <div class="section-subheading"><h3>Thông tin ảnh hưởng trực tiếp đến quyền lợi của người cha</h3><p>Chỉ chọn khi đúng với hồ sơ thực tế.</p></div>
+            <div class="eligibility-checks grid-two">
+              <label class="check-field eligibility-check"><input id="maternityWifeSurgery" type="checkbox" /><span><strong>Vợ sinh phải phẫu thuật</strong><small>Ảnh hưởng số ngày nghỉ của cha: 07 ngày khi sinh một con; 14 ngày khi sinh đôi và cộng thêm theo luật nếu sinh từ ba con.</small></span></label>
+              <label class="check-field eligibility-check"><input id="maternityChildUnder32" type="checkbox" /><span><strong>Sinh con dưới 32 tuần tuổi</strong><small>Với trường hợp sinh một con, người cha được nghỉ 07 ngày làm việc thay vì 05 ngày.</small></span></label>
+              <label class="check-field eligibility-check"><input id="maternityMotherNotEligible" type="checkbox" /><span><strong>Mẹ không đủ điều kiện hưởng chế độ thai sản khi sinh con</strong><small>Nếu chọn, hệ thống sẽ tự kiểm tra người cha có đủ 06 tháng đóng BHXH bắt buộc trong 12 tháng trước sinh để tính trợ cấp một lần hay không.</small></span></label>
             </div>
           </div>
+
           <div id="maternitySpecialOptions" class="form-grid three">
-            <label class="check-field"><input id="maternityPregnancyLeave" type="checkbox" /><span>Nghỉ dưỡng thai theo chỉ định và đã đóng từ đủ 12 tháng trước đó</span></label>
-            <label class="check-field"><input id="maternityInfertility" type="checkbox" /><span>Phải nghỉ việc để điều trị vô sinh trước khi sinh</span></label>
-            <label class="check-field"><input id="maternitySurgeryUnder32" type="checkbox" /><span>Vợ sinh phẫu thuật hoặc con dưới 32 tuần tuổi</span></label>
-            <label class="check-field"><input id="maternityFatherLump" type="checkbox" /><span>Người cha đủ điều kiện nhận trợ cấp một lần do mẹ không đủ điều kiện</span></label>
             <label class="check-field eligibility-check" id="maternityActiveRow"><input id="maternityActiveCompulsory" type="checkbox" /><span><strong>Đang tham gia BHXH bắt buộc tại thời điểm phát sinh</strong><small>Áp dụng cho cha nghỉ khi vợ sinh, khám thai, thai nghén và biện pháp tránh thai.</small></span></label>
             <label class="check-field eligibility-check" id="maternityMedicalFacilityRow" hidden><input id="maternityMedicalFacility" type="checkbox" /><span><strong>Thực hiện tại cơ sở khám bệnh, chữa bệnh</strong><small>Bắt buộc đối với trường hợp sử dụng biện pháp tránh thai.</small></span></label>
-            <label class="field"><span>Tuổi thai (tuần)</span><input id="maternityWeeks" type="number" min="0" step="1" value="0" /></label>
-            <label class="field"><span>Số ngày nghỉ theo chỉ định/thực tế</span><input id="maternityDays" type="number" min="0" step="1" value="0" /></label>
+            <label class="field" id="maternityWeeksRow"><span>Tuổi thai (tuần)</span><input id="maternityWeeks" type="number" min="0" step="1" value="0" /></label>
+            <label class="field" id="maternityDaysRow"><span>Số ngày nghỉ theo chỉ định/thực tế</span><input id="maternityDays" type="number" min="0" step="1" value="0" /></label>
           </div>
           <div id="maternitySalaryBlock" class="salary-six-block"><h3>Tiền lương đóng BHXH bắt buộc gần nhất trước khi nghỉ</h3><p class="table-note">Nhập tối đa 06 tháng gần nhất. Trường hợp luật cho phép người tham gia chưa đủ 06 tháng, hệ thống bình quân các tháng thực tế đã nhập.</p><div class="form-grid three" id="maternitySalaryGrid"><label class="field"><span>Tháng 1</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 2</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 3</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 4</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 5</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label><label class="field"><span>Tháng 6</span><input class="maternity-salary" type="number" min="0" step="1000" placeholder="VND" /></label></div></div>
           <div class="action-bar compact-action"><div><strong>Sẵn sàng tính kết quả</strong><span>Hệ thống kiểm tra điều kiện trước; chưa đủ điều kiện sẽ không trừ lượt tính.</span></div><button class="button primary" type="submit">Tính chế độ thai sản</button></div>

@@ -217,7 +217,7 @@ app.get('/api/config',async(_req,res)=>{
 });
 app.get('/api/health',async(_req,res)=>{
   const authProviders=await getPublicAuthProviderSettings();
-  res.json({ok:true,version:'3.11.0',authConfigured:supabaseConfigured,googleAuthEnabled:authProviders.google,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'});
+  res.json({ok:true,version:'3.12.0',authConfigured:supabaseConfigured,googleAuthEnabled:authProviders.google,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'});
 });
 app.get('/api/system/status',async(_req,res)=>{
   try{res.json(await databaseStatus());}

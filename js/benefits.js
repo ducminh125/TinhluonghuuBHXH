@@ -263,10 +263,10 @@ function maternityAverage(salaries = []) {
   return average(salaries);
 }
 
-function maleBirthLeaveDays(children, surgeryOrUnder32) {
+function maleBirthLeaveDays(children, { wifeSurgery = false, childUnder32 = false } = {}) {
   const n = Math.max(1, Math.trunc(number(children)) || 1);
-  if (n === 1) return surgeryOrUnder32 ? 7 : 5;
-  if (surgeryOrUnder32) return 14 + Math.max(0, n - 2) * 3;
+  if (n === 1) return wifeSurgery || childUnder32 ? 7 : 5;
+  if (wifeSurgery) return 14 + Math.max(0, n - 2) * 3;
   return 10 + Math.max(0, n - 2) * 3;
 }
 
@@ -314,23 +314,26 @@ export function calculateMaternityBenefit(input = {}) {
   const base = { ok: true, benefitType: 'maternity', scheme, caseType, eventMonth, children, months12, months24, totalPriorMonths, activeCompulsoryAtEvent, referenceLevel, warnings };
 
   if (caseType === 'female_birth') {
-    const infertility = Boolean(input.infertilityTreatment);
-    const pregnancyLeave = Boolean(input.pregnancyLeave);
+    const legacyInfertility = Boolean(input.infertilityTreatment);
+    const legacyPregnancyLeave = Boolean(input.pregnancyLeave);
+    const femaleCondition = String(input.femaleCondition || (legacyInfertility ? 'infertility' : legacyPregnancyLeave ? 'pregnancy_leave' : 'standard'));
     const eligibilityErrors = [];
     let eligibilityRule;
-    if (infertility && pregnancyLeave) {
-      eligibilityRule = 'Chỉ chọn một trường hợp đặc biệt để kiểm tra điều kiện.';
-      eligibilityErrors.push('Không chọn đồng thời “nghỉ dưỡng thai theo chỉ định” và “điều trị vô sinh”. Hãy chọn đúng trường hợp thực tế.');
-    } else if (infertility) {
+    if (legacyInfertility && legacyPregnancyLeave) {
+      eligibilityRule = 'Chỉ áp dụng một nhóm điều kiện trước khi sinh.';
+      eligibilityErrors.push('Không thể đồng thời áp dụng điều kiện dưỡng thai theo chỉ định và điều trị vô sinh cho cùng phép tính.');
+    } else if (femaleCondition === 'infertility') {
       eligibilityRule = 'Phải nghỉ việc để điều trị vô sinh: đóng BHXH bắt buộc từ đủ 06 tháng trong 24 tháng liền kề trước khi sinh.';
       if (months24 < 6) eligibilityErrors.push('Trường hợp điều trị vô sinh cần đóng BHXH bắt buộc từ đủ 06 tháng trong 24 tháng liền kề trước khi sinh.');
-    } else if (pregnancyLeave) {
-      eligibilityRule = 'Nghỉ dưỡng thai theo chỉ định: đã đóng BHXH bắt buộc từ đủ 12 tháng trở lên trước đó và có từ đủ 03 tháng đóng trong 12 tháng liền kề trước khi sinh.';
-      if (totalPriorMonths < 12) eligibilityErrors.push('Trường hợp nghỉ dưỡng thai theo chỉ định cần có tổng thời gian đã đóng BHXH bắt buộc từ đủ 12 tháng trở lên.');
-      if (months12 < 3) eligibilityErrors.push('Trường hợp nghỉ dưỡng thai theo chỉ định cần đóng BHXH bắt buộc từ đủ 03 tháng trong 12 tháng liền kề trước khi sinh.');
-    } else {
+    } else if (femaleCondition === 'pregnancy_leave') {
+      eligibilityRule = 'Phải nghỉ việc để dưỡng thai theo chỉ định: đã đóng BHXH bắt buộc từ đủ 12 tháng trở lên trước đó và có từ đủ 03 tháng đóng trong 12 tháng liền kề trước khi sinh.';
+      if (totalPriorMonths < 12) eligibilityErrors.push('Trường hợp dưỡng thai theo chỉ định cần có tổng thời gian đã đóng BHXH bắt buộc từ đủ 12 tháng trở lên.');
+      if (months12 < 3) eligibilityErrors.push('Trường hợp dưỡng thai theo chỉ định cần đóng BHXH bắt buộc từ đủ 03 tháng trong 12 tháng liền kề trước khi sinh.');
+    } else if (femaleCondition === 'standard') {
       eligibilityRule = 'Lao động nữ sinh con: đóng BHXH bắt buộc từ đủ 06 tháng trong 12 tháng liền kề trước khi sinh.';
       if (months12 < 6) eligibilityErrors.push('Lao động nữ sinh con cần đóng BHXH bắt buộc từ đủ 06 tháng trong 12 tháng liền kề trước khi sinh.');
+    } else {
+      return { ok: false, errors: ['Tình trạng trước khi sinh không hợp lệ.'] };
     }
     if (eligibilityErrors.length) return { ...base, eligible: false, eligibilityRule, eligibilityErrors };
 
@@ -344,13 +347,13 @@ export function calculateMaternityBenefit(input = {}) {
   }
 
   if (caseType === 'male_birth') {
-    const fatherLumpRequested = Boolean(input.fatherLumpEligible);
+    const motherNotEligible = Boolean(input.motherNotEligible ?? input.fatherLumpEligible);
     const leaveEligible = activeCompulsoryAtEvent;
-    const fatherLumpEligible = fatherLumpRequested && months12 >= 6;
+    const fatherLumpEligible = motherNotEligible && months12 >= 6;
     const eligibilityErrors = [];
     if (!leaveEligible && !fatherLumpEligible) {
       eligibilityErrors.push('Lao động nam muốn hưởng thời gian nghỉ khi vợ sinh con phải đang tham gia BHXH bắt buộc tại thời điểm vợ sinh con.');
-      if (fatherLumpRequested && months12 < 6) eligibilityErrors.push('Để nhận trợ cấp một lần do mẹ không đủ điều kiện, người cha cần đóng BHXH bắt buộc từ đủ 06 tháng trong 12 tháng trước khi sinh.');
+      if (motherNotEligible && months12 < 6) eligibilityErrors.push('Khi mẹ không đủ điều kiện hưởng thai sản, người cha cần đóng BHXH bắt buộc từ đủ 06 tháng trong 12 tháng trước khi sinh để được trợ cấp một lần.');
       return { ...base, eligible: false, eligibilityRule: 'Cha được nghỉ khi đang tham gia BHXH bắt buộc; trợ cấp một lần của cha áp dụng khi mẹ không đủ điều kiện và cha đủ điều kiện thời gian đóng.', eligibilityErrors };
     }
 
@@ -362,15 +365,26 @@ export function calculateMaternityBenefit(input = {}) {
       const salaries = (input.salaryMonths || []).map(number).filter(v => v > 0).slice(0, 6);
       if (!salaries.length) return { ok: false, errors: ['Cần nhập mức tiền lương đóng BHXH bắt buộc gần nhất của người cha để tính tiền nghỉ thai sản.'] };
       avgSalary = maternityAverage(salaries);
-      days = maleBirthLeaveDays(children, Boolean(input.surgeryOrUnder32));
+      const legacySurgeryOrUnder32 = Boolean(input.surgeryOrUnder32);
+      const wifeSurgery = Boolean(input.wifeSurgery ?? legacySurgeryOrUnder32);
+      const childUnder32 = Boolean(input.childUnder32);
+      days = maleBirthLeaveDays(children, { wifeSurgery, childUnder32 });
       daily = avgSalary / 24;
       leavePay = daily * days;
     }
     const lumpSum = fatherLumpEligible ? 2 * referenceLevel * children : 0;
     const notes = [];
-    if (leaveEligible) notes.push(Boolean(input.surgeryOrUnder32) ? 'Vợ sinh phẫu thuật hoặc con dưới 32 tuần tuổi: thời gian nghỉ của cha được áp dụng theo nhóm ngày nghỉ đặc biệt của Điều 53.' : 'Người cha đang tham gia BHXH bắt buộc được nghỉ theo số ngày luật định khi vợ sinh con.');
-    if (fatherLumpEligible) notes.push('Đã tính trợ cấp một lần cho người cha theo xác nhận mẹ không đủ điều kiện và cha có từ đủ 06 tháng đóng trong 12 tháng trước sinh.');
-    return { ...base, eligible: true, eligibilityErrors: [], eligibilityRule: 'Cha đang tham gia BHXH bắt buộc được nghỉ khi vợ sinh con; cha có thể được trợ cấp một lần nếu mẹ không đủ điều kiện và cha đáp ứng thời gian đóng.', durationDays: days, durationLabel: leaveEligible ? `${days} ngày làm việc` : 'Chỉ trợ cấp một lần', dailyBenefit: daily, monthlyBenefit: leaveEligible ? avgSalary : null, maternityPay: leavePay, lumpSum, estimatedTotal: leavePay + lumpSum, notes };
+    if (leaveEligible) {
+      const legacySurgeryOrUnder32 = Boolean(input.surgeryOrUnder32);
+      const wifeSurgery = Boolean(input.wifeSurgery ?? legacySurgeryOrUnder32);
+      const childUnder32 = Boolean(input.childUnder32);
+      if (wifeSurgery) notes.push('Vợ sinh phải phẫu thuật: thời gian nghỉ của cha được áp dụng theo nhóm ngày nghỉ đặc biệt của Điều 53.');
+      else if (children === 1 && childUnder32) notes.push('Sinh một con dưới 32 tuần tuổi: người cha được nghỉ 07 ngày làm việc theo Điều 53.');
+      else notes.push('Người cha đang tham gia BHXH bắt buộc được nghỉ theo số ngày luật định khi vợ sinh con.');
+    }
+    if (fatherLumpEligible) notes.push('Đã tính trợ cấp một lần cho người cha vì mẹ không đủ điều kiện hưởng thai sản và cha có từ đủ 06 tháng đóng BHXH bắt buộc trong 12 tháng trước sinh.');
+    else if (motherNotEligible) notes.push('Chưa tính trợ cấp một lần cho người cha vì thời gian đóng BHXH bắt buộc trong 12 tháng trước sinh chưa đủ 06 tháng. Quyền nghỉ khi vợ sinh (nếu đang tham gia BHXH bắt buộc) vẫn được tính riêng.');
+    return { ...base, eligible: true, eligibilityErrors: [], eligibilityRule: 'Cha đang tham gia BHXH bắt buộc được nghỉ khi vợ sinh con; nếu mẹ không đủ điều kiện hưởng thai sản thì hệ thống kiểm tra thêm điều kiện 06 tháng đóng trong 12 tháng trước sinh để tính trợ cấp một lần cho cha.', durationDays: days, durationLabel: leaveEligible ? `${days} ngày làm việc` : 'Chỉ trợ cấp một lần', dailyBenefit: daily, monthlyBenefit: leaveEligible ? avgSalary : null, maternityPay: leavePay, lumpSum, estimatedTotal: leavePay + lumpSum, notes };
   }
 
   const activeEligibility = [];

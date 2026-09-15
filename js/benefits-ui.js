@@ -129,11 +129,51 @@ function syncMaternityForm() {
   if (!caseSel) return;
   [...caseSel.options].forEach(o => { o.disabled = scheme === 'voluntary' && !['female_birth', 'male_birth'].includes(o.value); });
   if (caseSel.selectedOptions[0]?.disabled) caseSel.value = 'female_birth';
+
   const compulsory = scheme === 'compulsory';
-  $('maternitySalaryBlock').hidden = !compulsory;
-  $('maternitySpecialOptions').classList.toggle('is-muted', !compulsory);
-  if ($('maternityActiveRow')) $('maternityActiveRow').hidden = !compulsory || caseSel.value === 'female_birth';
-  if ($('maternityMedicalFacilityRow')) $('maternityMedicalFacilityRow').hidden = !compulsory || !['contraception_iud', 'contraception_sterilization'].includes(caseSel.value);
+  const caseType = caseSel.value;
+  const femaleBirth = compulsory && caseType === 'female_birth';
+  const maleBirth = compulsory && caseType === 'male_birth';
+  const birthCase = ['female_birth', 'male_birth'].includes(caseType);
+  const femaleCondition = $('maternityFemaleCondition')?.value || 'standard';
+  const motherNotEligible = Boolean($('maternityMotherNotEligible')?.checked);
+  const activeAtEvent = Boolean($('maternityActiveCompulsory')?.checked);
+
+  if ($('maternityFemaleSpecial')) $('maternityFemaleSpecial').hidden = !femaleBirth;
+  if ($('maternityMaleSpecial')) $('maternityMaleSpecial').hidden = !maleBirth;
+
+  if ($('maternityChildrenRow')) $('maternityChildrenRow').hidden = !birthCase;
+  if ($('maternityMonths12Row')) {
+    const showMonths12 = compulsory
+      ? (femaleBirth && ['standard', 'pregnancy_leave'].includes(femaleCondition)) || (maleBirth && motherNotEligible)
+      : birthCase;
+    $('maternityMonths12Row').hidden = !showMonths12;
+  }
+  if ($('maternityMonths24Row')) $('maternityMonths24Row').hidden = !(femaleBirth && femaleCondition === 'infertility');
+  if ($('maternityTotalPriorRow')) $('maternityTotalPriorRow').hidden = !(femaleBirth && femaleCondition === 'pregnancy_leave');
+
+  const activeRequired = compulsory && caseType !== 'female_birth';
+  if ($('maternityActiveRow')) $('maternityActiveRow').hidden = !activeRequired;
+  if ($('maternityMedicalFacilityRow')) $('maternityMedicalFacilityRow').hidden = !compulsory || !['contraception_iud', 'contraception_sterilization'].includes(caseType);
+  if ($('maternityWeeksRow')) $('maternityWeeksRow').hidden = caseType !== 'pregnancy_loss';
+  if ($('maternityDaysRow')) $('maternityDaysRow').hidden = !['prenatal', 'pregnancy_loss', 'contraception_iud', 'contraception_sterilization'].includes(caseType);
+
+  const salaryNeeded = compulsory && (
+    femaleBirth ||
+    (!birthCase) ||
+    (maleBirth && activeAtEvent)
+  );
+  if ($('maternitySalaryBlock')) $('maternitySalaryBlock').hidden = !salaryNeeded;
+  if ($('maternitySpecialOptions')) $('maternitySpecialOptions').classList.toggle('is-muted', !compulsory);
+
+  const help = $('maternityFemaleConditionHelp');
+  if (help) {
+    help.textContent = femaleCondition === 'pregnancy_leave'
+      ? 'Hệ thống kiểm tra: đã đóng BHXH bắt buộc từ đủ 12 tháng trước đó và có từ đủ 03 tháng đóng trong 12 tháng liền kề trước khi sinh.'
+      : femaleCondition === 'infertility'
+        ? 'Hệ thống kiểm tra: có từ đủ 06 tháng đóng BHXH bắt buộc trong 24 tháng liền kề trước khi sinh.'
+        : 'Điều kiện thông thường: có từ đủ 06 tháng đóng BHXH bắt buộc trong 12 tháng liền kề trước khi sinh.';
+  }
 }
 
 function init() {
@@ -181,15 +221,21 @@ function init() {
     finally { if (b) { b.disabled = false; b.textContent = 'Tính trợ cấp thất nghiệp'; } }
   });
 
-  $('maternityScheme')?.addEventListener('change', syncMaternityForm); $('maternityCase')?.addEventListener('change', syncMaternityForm); syncMaternityForm();
+  $('maternityScheme')?.addEventListener('change', syncMaternityForm);
+  $('maternityCase')?.addEventListener('change', syncMaternityForm);
+  $('maternityFemaleCondition')?.addEventListener('change', syncMaternityForm);
+  $('maternityMotherNotEligible')?.addEventListener('change', syncMaternityForm);
+  $('maternityActiveCompulsory')?.addEventListener('change', syncMaternityForm);
+  syncMaternityForm();
   $('maternityForm')?.addEventListener('submit', async e => {
     e.preventDefault(); const host = $('maternityResult');
     const input = {
       scheme: $('maternityScheme').value, caseType: $('maternityCase').value, eventMonth: parseMonth($('maternityEventMonth').value), children: Number($('maternityChildren').value || 1),
       months12: Number($('maternityMonths12').value || 0), months24: Number($('maternityMonths24').value || 0), totalPriorMonths: Number($('maternityTotalPrior').value || 0),
       activeCompulsoryAtEvent: $('maternityActiveCompulsory').checked, medicalProcedureFacility: $('maternityMedicalFacility').checked,
-      pregnancyLeave: $('maternityPregnancyLeave').checked, infertilityTreatment: $('maternityInfertility').checked,
-      surgeryOrUnder32: $('maternitySurgeryUnder32').checked, fatherLumpEligible: $('maternityFatherLump').checked,
+      femaleCondition: $('maternityFemaleCondition')?.value || 'standard',
+      wifeSurgery: Boolean($('maternityWifeSurgery')?.checked), childUnder32: Boolean($('maternityChildUnder32')?.checked),
+      motherNotEligible: Boolean($('maternityMotherNotEligible')?.checked),
       gestationWeeks: Number($('maternityWeeks').value || 0), requestedDays: Number($('maternityDays').value || 0),
       salaryMonths: [...document.querySelectorAll('.maternity-salary')].map(x => Number(x.value || 0)).filter(Boolean)
     };
