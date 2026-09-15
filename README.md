@@ -1,4 +1,4 @@
-# VN Social Insurance Benefits Calculator v3.7
+# VN Social Insurance Benefits Calculator v3.8
 
 Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 - lương hưu;
@@ -9,6 +9,15 @@ Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 Hệ thống dùng Supabase cho tài khoản/database, payOS cho VietQR + webhook thanh toán, và ShopAIKey chỉ cho hồ sơ ảnh/PDF cần model. Phép tính quyền lợi do engine quy tắc trong source thực hiện, không giao cho AI tự quyết định số tiền.
 
 > Kết quả là tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH, hồ sơ thực tế và văn bản có hiệu lực tại thời điểm giải quyết.
+
+## Mới trong v3.8
+
+- **Google OAuth an toàn hơn:** backend kiểm tra trạng thái Google Provider từ Supabase trước khi cho phép bấm đăng nhập. Nếu Google chưa được bật, nút Google bị vô hiệu hóa thay vì chuyển người dùng tới lỗi JSON `Unsupported provider`.
+- **Tài khoản của tôi gọn hơn:** bỏ nút “Mua thêm lượt” trong popup; lịch sử và đơn hàng nằm trong hai khung cuộn, mỗi khung chỉ chiếm khoảng 05 dòng trên màn hình. Nút mua lượt ở header vẫn giữ nguyên.
+- **Admin phân trang thật ở server:** tài khoản, đơn hàng và log đọc hồ sơ đều tải 10 bản ghi/trang. Tài khoản có ô tra cứu theo email, mã tài khoản hoặc tên.
+- `/api/health` và `/api/config` trả thêm trạng thái `googleAuthEnabled` để kiểm tra nhanh cấu hình Google.
+
+> Lưu ý: code chỉ có thể **phát hiện** Google Provider đang bật/tắt. Để đăng nhập Google hoạt động thật, bạn vẫn phải bật Google trong Supabase Dashboard và nhập Google Client ID/Client Secret.
 
 ## 1. Các tab tính v3.7
 
@@ -166,7 +175,7 @@ Khuyến nghị:
 - payOS: QR/webhook;
 - ShopAIKey: AI gateway.
 
-Xem `DEPLOY-V3.7.md`.
+Xem `DEPLOY-V3.8.md`.
 
 ## 11. Kiểm thử
 
@@ -174,7 +183,7 @@ Xem `DEPLOY-V3.7.md`.
 npm test
 ```
 
-Bản đóng gói v3.7: **50/50 test PASS**.
+Bản đóng gói v3.8: **53/53 test PASS**.
 
 ## 12. File chính
 

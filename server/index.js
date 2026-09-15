@@ -13,6 +13,7 @@ import {
   supabaseAdmin,
   supabaseConfigured,
   publicSupabaseConfig,
+  getPublicAuthProviderSettings,
   requireUser,
   requireAdmin,
   getWallet,
@@ -204,15 +205,20 @@ function calculateRequest(body){
   return {avg,result,input};
 }
 
-app.get('/api/config',(_req,res)=>{
+app.get('/api/config',async(_req,res)=>{
   const supa=publicSupabaseConfig();
+  const authProviders=await getPublicAuthProviderSettings();
   res.json({
     authEnabled:Boolean(supabaseConfigured&&supa.publishableKey),supabaseUrl:supa.url,supabasePublishableKey:supa.publishableKey,
+    googleAuthEnabled:authProviders.google,googleAuthChecked:authProviders.checked,
     freeQuota:{direct:3,file:0,history:3},bank:bankConfig(),payment:{provider:'payos',configured:payosConfigured},
     maxDirectUploadBytes:process.env.VERCEL==='1'?4*1024*1024:MAX_TOTAL_UPLOAD
   });
 });
-app.get('/api/health',(_req,res)=>res.json({ok:true,version:'3.7.0',authConfigured:supabaseConfigured,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'}));
+app.get('/api/health',async(_req,res)=>{
+  const authProviders=await getPublicAuthProviderSettings();
+  res.json({ok:true,version:'3.8.0',authConfigured:supabaseConfigured,googleAuthEnabled:authProviders.google,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'});
+});
 app.get('/api/system/status',async(_req,res)=>{
   try{res.json(await databaseStatus());}
   catch(e){sendDbError(res,e,'Không kiểm tra được cơ sở dữ liệu.');}
@@ -530,26 +536,93 @@ app.post('/api/import',requireUser,runImportUpload,async(req,res)=>{
   }
 });
 
+
+function adminPagination(req, defaultPerPage = 10) {
+  const page = Math.max(1, Math.trunc(Number(req.query.page || 1)) || 1);
+  const perPage = Math.min(50, Math.max(1, Math.trunc(Number(req.query.perPage || defaultPerPage)) || defaultPerPage));
+  return { page, perPage, from: (page - 1) * perPage, to: page * perPage - 1 };
+}
+
+async function resolveUserContacts(userIds = []) {
+  const ids = [...new Set(userIds.filter(Boolean))];
+  const contacts = new Map();
+  await Promise.all(ids.slice(0, 50).map(async id => {
+    const { data } = await supabaseAdmin.auth.admin.getUserById(id);
+    if (data?.user) contacts.set(id, data.user.email || data.user.phone || id);
+  }));
+  return contacts;
+}
+
+function authUserMatches(user, rawQuery = '') {
+  const q = String(rawQuery || '').trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [
+    user?.id, user?.email, user?.phone,
+    user?.user_metadata?.full_name, user?.user_metadata?.name
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(q);
+}
+
+async function findAuthUsers(rawQuery, page, perPage) {
+  const q = String(rawQuery || '').trim();
+  if (!q) {
+    const [{ data: authData, error: authError }, { count: profileCount, error: countError }] = await Promise.all([
+      supabaseAdmin.auth.admin.listUsers({ page, perPage }),
+      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true })
+    ]);
+    if (authError) throw authError;
+    if (countError) throw countError;
+    return { users: authData.users || [], total: profileCount || 0, searchTruncated: false };
+  }
+
+  const scanSize = 200;
+  const maxScanPages = 25;
+  const matches = [];
+  let searchTruncated = false;
+  for (let scanPage = 1; scanPage <= maxScanPages; scanPage++) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: scanPage, perPage: scanSize });
+    if (error) throw error;
+    const users = data?.users || [];
+    for (const user of users) if (authUserMatches(user, q)) matches.push(user);
+    if (users.length < scanSize) break;
+    if (scanPage === maxScanPages) searchTruncated = true;
+  }
+  const start = (page - 1) * perPage;
+  return { users: matches.slice(start, start + perPage), total: matches.length, searchTruncated };
+}
+
 // Admin API
 app.get('/api/admin/metrics',requireAdmin,async(_req,res)=>{
   const [{count:userCount},{count:pendingOrders},{data:paidOrders},{data:imports}]=await Promise.all([
     supabaseAdmin.from('profiles').select('*',{count:'exact',head:true}),
     supabaseAdmin.from('orders').select('*',{count:'exact',head:true}).eq('status','pending'),
     supabaseAdmin.from('orders').select('amount_vnd').eq('status','paid'),
-    supabaseAdmin.from('import_jobs').select('latency_ms,provider,model,parser_mode,status,created_at').order('created_at',{ascending:false}).limit(200)
+    supabaseAdmin.from('import_jobs').select('latency_ms,status').order('created_at',{ascending:false}).limit(200)
   ]);
-  const revenue=(paidOrders||[]).reduce((s,x)=>s+Number(x.amount_vnd||0),0);
-  const successful=(imports||[]).filter(x=>x.status==='success'&&Number(x.latency_ms)>0);
-  const avgLatency=successful.length?Math.round(successful.reduce((s,x)=>s+Number(x.latency_ms),0)/successful.length):0;
-  res.json({userCount:userCount||0,pendingOrders:pendingOrders||0,revenueVnd:revenue,avgImportLatencyMs:avgLatency,recentImports:imports||[]});
+  const revenue=(paidOrders||[]).reduce((sum,row)=>sum+Number(row.amount_vnd||0),0);
+  const successful=(imports||[]).filter(row=>row.status==='success'&&Number(row.latency_ms)>0);
+  const avgLatency=successful.length?Math.round(successful.reduce((sum,row)=>sum+Number(row.latency_ms),0)/successful.length):0;
+  res.json({userCount:userCount||0,pendingOrders:pendingOrders||0,revenueVnd:revenue,avgImportLatencyMs:avgLatency});
 });
 app.get('/api/admin/users',requireAdmin,async(req,res)=>{
-  const page=Math.max(1,Number(req.query.page||1));const perPage=Math.min(100,Math.max(10,Number(req.query.perPage||50)));
-  const {data:authData,error:authError}=await supabaseAdmin.auth.admin.listUsers({page,perPage});if(authError)return res.status(500).json({error:authError.message});
-  const ids=authData.users.map(u=>u.id);
-  const [{data:profiles},{data:wallets}]=ids.length?await Promise.all([supabaseAdmin.from('profiles').select('*').in('user_id',ids),supabaseAdmin.from('wallets').select('*').in('user_id',ids)]):[{data:[]},{data:[]}];
-  const pMap=new Map((profiles||[]).map(x=>[x.user_id,x]));const wMap=new Map((wallets||[]).map(x=>[x.user_id,x]));
-  res.json({users:authData.users.map(u=>({...safeUser(u),profile:pMap.get(u.id)||null,wallet:wMap.get(u.id)||null})),page,perPage});
+  try{
+    const {page,perPage}=adminPagination(req,10);
+    const q=String(req.query.q||'').trim();
+    const result=await findAuthUsers(q,page,perPage);
+    const ids=result.users.map(user=>user.id);
+    const [{data:profiles,error:profilesError},{data:wallets,error:walletsError}]=ids.length?await Promise.all([
+      supabaseAdmin.from('profiles').select('*').in('user_id',ids),
+      supabaseAdmin.from('wallets').select('*').in('user_id',ids)
+    ]):[{data:[],error:null},{data:[],error:null}];
+    if(profilesError)throw profilesError;if(walletsError)throw walletsError;
+    const pMap=new Map((profiles||[]).map(row=>[row.user_id,row]));
+    const wMap=new Map((wallets||[]).map(row=>[row.user_id,row]));
+    const totalPages=Math.max(1,Math.ceil(result.total/perPage));
+    res.json({
+      users:result.users.map(user=>({...safeUser(user),profile:pMap.get(user.id)||null,wallet:wMap.get(user.id)||null})),
+      page,perPage,total:result.total,totalPages,query:q,searchTruncated:result.searchTruncated
+    });
+  }catch(error){res.status(500).json({code:'ADMIN_USERS_LOAD_FAILED',error:error.message||'Không tải được tài khoản.'});}
 });
 app.post('/api/admin/users/:id/credits',requireAdmin,async(req,res)=>{
   try{
@@ -605,18 +678,26 @@ app.delete('/api/admin/plans/:id',requireAdmin,async(req,res)=>{
     res.json({ok:true});
   }catch(e){const n=normalizeDatabaseError(e);res.status(n.status||400).json({code:n.code||'PLAN_DELETE_FAILED',error:n.message||'Không xóa được gói.'});}
 });
-app.get('/api/admin/orders',requireAdmin,async(_req,res)=>{
-  const {data,error}=await supabaseAdmin.from('orders').select('*').order('created_at',{ascending:false}).limit(200);
+app.get('/api/admin/orders',requireAdmin,async(req,res)=>{
+  const {page,perPage,from,to}=adminPagination(req,10);
+  const {data,error,count}=await supabaseAdmin.from('orders').select('*',{count:'exact'}).order('created_at',{ascending:false}).range(from,to);
   if(error)return res.status(500).json({error:error.message});
   const orders=data||[];
-  const contacts=new Map();
-  const ids=[...new Set(orders.map(o=>o.user_id).filter(Boolean))];
-  // Admin SDK does not expose a bulk get-by-id call. Resolve only the distinct users present in the latest orders.
-  await Promise.all(ids.slice(0,100).map(async id=>{
-    const {data:u}=await supabaseAdmin.auth.admin.getUserById(id);
-    if(u?.user)contacts.set(id,u.user.email||id);
-  }));
-  res.json({orders:orders.map(o=>({...o,user_contact:contacts.get(o.user_id)||o.user_id}))});
+  const contacts=await resolveUserContacts(orders.map(order=>order.user_id));
+  const total=count||0;
+  res.json({orders:orders.map(order=>({...order,user_contact:contacts.get(order.user_id)||order.user_id})),page,perPage,total,totalPages:Math.max(1,Math.ceil(total/perPage))});
+});
+
+app.get('/api/admin/imports',requireAdmin,async(req,res)=>{
+  const {page,perPage,from,to}=adminPagination(req,10);
+  const {data,error,count}=await supabaseAdmin.from('import_jobs')
+    .select('id,user_id,latency_ms,provider,model,parser_mode,status,source_count,created_at',{count:'exact'})
+    .order('created_at',{ascending:false}).range(from,to);
+  if(error)return res.status(500).json({error:error.message});
+  const imports=data||[];
+  const contacts=await resolveUserContacts(imports.map(row=>row.user_id));
+  const total=count||0;
+  res.json({imports:imports.map(row=>({...row,user_contact:contacts.get(row.user_id)||row.user_id})),page,perPage,total,totalPages:Math.max(1,Math.ceil(total/perPage))});
 });
 app.post('/api/admin/orders/:id/approve',requireAdmin,async(req,res)=>{
   const {data,error}=await supabaseAdmin.rpc('approve_order',{p_order_id:req.params.id,p_admin_id:req.user.id});if(error)return res.status(400).json({error:error.message});res.json({order:Array.isArray(data)?data[0]:data});
@@ -653,5 +734,5 @@ app.use((error,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.sendFile(path.join(rootDir,'index.html')));
-if(process.env.VERCEL!=='1')app.listen(port,()=>console.log(`VN Social Insurance Benefits Calculator v3.7: http://localhost:${port}`));
+if(process.env.VERCEL!=='1')app.listen(port,()=>console.log(`VN Social Insurance Benefits Calculator v3.8: http://localhost:${port}`));
 export default app;

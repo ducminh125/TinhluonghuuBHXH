@@ -96,9 +96,39 @@ async function signInEmail(){
   const {error}=await client.auth.signInWithPassword({email,password});
   if(error)return setMessage('authMessage','error',error.message);closeAuth();
 }
+function applyGoogleAuthAvailability(){
+  const btn=$('googleLoginBtn'),hint=$('googleAuthHint');
+  if(!btn)return;
+  if(config?.googleAuthEnabled!==true){
+    btn.disabled=true;
+    btn.textContent=config?.googleAuthChecked===false?'Tạm thời chưa xác minh được Google':'Đăng nhập Google chưa được bật';
+    if(hint){
+      hint.hidden=false;
+      hint.textContent=config?.googleAuthChecked===false
+        ?'Hệ thống chưa kiểm tra được trạng thái Google Provider. Bạn vẫn có thể đăng nhập bằng email/mật khẩu; quản trị viên nên kiểm tra kết nối Supabase.'
+        :'Google Provider đang tắt trong Supabase. Quản trị viên cần bật Authentication → Providers → Google và cấu hình Client ID/Client Secret.';
+    }
+  }else{
+    btn.disabled=false;
+    btn.textContent='Tiếp tục bằng Google';
+    if(hint){
+      hint.hidden=config?.googleAuthChecked!==false;
+      hint.textContent=config?.googleAuthChecked===false?'Không kiểm tra được trạng thái Google Provider. Nếu đăng nhập lỗi, hãy kiểm tra cấu hình Google trong Supabase.':'';
+    }
+  }
+}
 async function signInGoogle(){
+  if(config?.googleAuthEnabled!==true){
+    setMessage('authMessage','error','Đăng nhập Google chưa được bật trong Supabase. Quản trị viên cần bật Google Provider trước.');
+    return;
+  }
   const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:`${location.origin}/?login=google`}});
-  if(error)setMessage('authMessage','error',error.message);
+  if(error){
+    const message=/provider.*(disabled|not enabled)|unsupported provider/i.test(error.message||'')
+      ? 'Google Provider chưa được bật trong Supabase. Vui lòng dùng email/mật khẩu hoặc liên hệ quản trị viên.'
+      : error.message;
+    setMessage('authMessage','error',message);
+  }
 }
 async function signOut(){if(client)await client.auth.signOut();session=null;me=null;accountError='';renderAccount();renderWalletDetail();closeAccount();}
 
@@ -265,7 +295,7 @@ async function loadOrders(){
   host.innerHTML='<p>Đang tải đơn hàng…</p>';
   try{
     const data=await jsonResponse(await authorizedFetch('/api/orders/mine'));
-    host.innerHTML=(data.orders||[]).slice(0,8).map(o=>`<div class="account-list-row"><span>${esc(o.plan_name)} · ${money.format(o.amount_vnd)}<small>Mã đơn: ${esc(o.payment_code||'—')}</small></span><b>${o.status==='paid'?'Đã thanh toán':o.status==='pending'?'Chờ thanh toán':o.status==='cancelled'?'Đã hủy':esc(o.status)}</b></div>`).join('')||'<p>Chưa có đơn hàng.</p>';
+    host.innerHTML=(data.orders||[]).map(o=>`<div class="account-list-row"><span>${esc(o.plan_name)} · ${money.format(o.amount_vnd)}<small>Mã đơn: ${esc(o.payment_code||'—')}</small></span><b>${o.status==='paid'?'Đã thanh toán':o.status==='pending'?'Chờ thanh toán':o.status==='cancelled'?'Đã hủy':esc(o.status)}</b></div>`).join('')||'<p>Chưa có đơn hàng.</p>';
   }catch(e){host.innerHTML=`<div class="alert error">${esc(e.code==='DATABASE_SETUP_REQUIRED'?'Chức năng đơn hàng chưa được quản trị viên cài đặt đầy đủ.':e.message)}</div>`;}
 }
 const HISTORY_CASE_LABELS={
@@ -356,7 +386,7 @@ async function loadHistory(){
   if(!session)return;const host=$('historyList');if(!host)return;
   host.innerHTML='<p>Đang tải lịch sử…</p>';
   try{
-    const data=await jsonResponse(await authorizedFetch('/api/history?limit=12'));
+    const data=await jsonResponse(await authorizedFetch('/api/history?limit=30'));
     host.innerHTML=(data.history||[]).map(h=>{const sum=historySummary(h);return `<div class="account-list-row history-list-row"><span><strong>${esc(h.title||HISTORY_BENEFIT_LABELS[sum.type]||'Kết quả đã lưu')}</strong><small>${new Date(h.created_at).toLocaleString('vi-VN')} · ${h.mode==='file'?'File/ảnh tự động':'Thủ công'} · ${esc(HISTORY_BENEFIT_LABELS[sum.type]||sum.type)}</small><small>${esc(sum.line)}</small></span><button class="button secondary small history-open" data-history="${esc(h.id)}" type="button">Tra cứu</button></div>`;}).join('')||'<p>Chưa lưu kết quả nào.</p>';
     host.querySelectorAll('.history-open').forEach(btn=>btn.addEventListener('click',()=>openHistoryDetail(btn.dataset.history)));
   }catch(e){host.innerHTML=`<div class="alert error">${esc(e.code==='DATABASE_SETUP_REQUIRED'?'Chức năng lịch sử chưa được quản trị viên cài đặt đầy đủ.':e.message)}</div>`;}
@@ -382,6 +412,7 @@ async function handlePaymentReturn(){
 
 async function init(){
   config=await fetch('/api/config').then(r=>r.json()).catch(()=>({authEnabled:false}));
+  applyGoogleAuthAvailability();
   if(config.authEnabled && window.supabase?.createClient){
     client=window.supabase.createClient(config.supabaseUrl,config.supabasePublishableKey,{auth:{persistSession:true,detectSessionInUrl:true}});
     await refreshSession();
@@ -394,7 +425,7 @@ async function init(){
   $('copyPaymentAmount')?.addEventListener('click',async()=>{if(await copyText($('paymentAmount')?.dataset.copy||''))setMessage('paymentMessage','success','Đã sao chép số tiền.');});
   $('copyPaymentCode')?.addEventListener('click',async()=>{if(await copyText($('paymentCode')?.textContent||''))setMessage('paymentMessage','success','Đã sao chép nội dung chuyển khoản.');});
   $('emailLoginBtn')?.addEventListener('click',signInEmail);$('emailSignupBtn')?.addEventListener('click',signUpEmail);$('googleLoginBtn')?.addEventListener('click',signInGoogle);
-  $('buyCreditsBtn')?.addEventListener('click',openPlans);$('accountBuyBtn')?.addEventListener('click',openPlans);
+  $('buyCreditsBtn')?.addEventListener('click',openPlans);
   await handlePaymentReturn();
 }
 

@@ -412,6 +412,7 @@
       </div>
       <div class="auth-divider"><span>hoặc</span></div>
       <button class="button google-button" id="googleLoginBtn" type="button">Tiếp tục bằng Google</button>
+      <div id="googleAuthHint" class="auth-provider-hint" hidden></div>
       <small>Đăng nhập Google cần được bật trong cấu hình nhà cung cấp xác thực. Khi đăng ký/tiếp tục, bạn xác nhận đã đọc <a href="/terms" target="_blank" rel="noopener">Điều khoản</a> và <a href="/privacy" target="_blank" rel="noopener">Chính sách bảo mật</a>.</small>
     </section>
   </div>
@@ -429,15 +430,15 @@
   <div class="modal-backdrop" id="accountModal" hidden>
     <section class="modal-card wide-modal" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
       <button class="modal-close" id="accountClose" type="button" aria-label="Đóng">×</button>
-      <div class="modal-heading-row"><div><h2 id="accountTitle">Tài khoản của tôi</h2><p>Theo dõi lượt sử dụng, lịch sử và đơn hàng.</p></div><button class="button primary" id="accountBuyBtn" type="button">Mua thêm lượt</button></div>
+      <div class="modal-heading-row"><div><h2 id="accountTitle">Tài khoản của tôi</h2><p>Theo dõi lượt sử dụng, lịch sử và đơn hàng.</p></div></div>
       <h3>Lượt sử dụng còn lại</h3>
       <div id="walletSummary" class="wallet-summary"><p>Đang tải hạn mức…</p></div>
       <div class="account-columns">
         <div>
-          <div class="account-section-title"><h3>Lịch sử đã lưu</h3><small>Bấm “Tra cứu” để xem lại dữ liệu và kết quả đã lưu.</small></div>
-          <div id="historyList" class="account-list"></div>
+          <div class="account-section-title"><h3>Lịch sử đã lưu</h3><small>Bấm “Tra cứu” để xem lại dữ liệu và kết quả đã lưu. Khung hiển thị khoảng 05 bản ghi; cuộn để xem thêm.</small></div>
+          <div id="historyList" class="account-list account-scroll-list history-scroll-list" aria-label="Danh sách lịch sử đã lưu, cuộn để xem thêm"></div>
         </div>
-        <div><h3>Đơn hàng gần đây</h3><div id="orderList" class="account-list"></div></div>
+        <div><div class="account-section-title"><h3>Đơn hàng gần đây</h3><small>Khung hiển thị khoảng 05 đơn; cuộn để xem các đơn khác.</small></div><div id="orderList" class="account-list account-scroll-list order-scroll-list" aria-label="Danh sách đơn hàng, cuộn để xem thêm"></div></div>
       </div>
       <section id="historyDetailPanel" class="history-detail-panel" hidden aria-live="polite">
         <div class="history-detail-head">

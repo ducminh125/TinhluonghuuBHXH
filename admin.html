@@ -39,10 +39,15 @@
       <section class="card">
         <div class="section-heading">
           <div><span class="step">01</span><h2>Tài khoản đăng ký</h2></div>
-          <p>Có thể cộng lượt sử dụng hoặc tạm khóa tài khoản khi cần.</p>
+          <p>Mỗi trang hiển thị 10 tài khoản. Có thể tra cứu nhanh theo email, mã tài khoản hoặc tên người dùng.</p>
         </div>
         <div id="userMessage"></div>
-        <div class="admin-toolbar">
+        <div class="admin-toolbar admin-toolbar-search">
+          <div class="admin-search-group">
+            <input id="userSearchInput" type="search" placeholder="Tra cứu email, mã tài khoản, tên…" autocomplete="off" />
+            <button class="button primary small" id="userSearchBtn" type="button">Tra cứu</button>
+            <button class="button secondary small" id="userSearchClearBtn" type="button">Xóa lọc</button>
+          </div>
           <button class="button secondary small" id="refreshUsersBtn" type="button">Làm mới</button>
         </div>
         <div class="table-wrap">
@@ -51,6 +56,7 @@
             <tbody></tbody>
           </table>
         </div>
+        <div id="usersPagination" class="admin-pagination" aria-label="Phân trang tài khoản"></div>
       </section>
 
       <section class="card">
@@ -97,19 +103,21 @@
             <tbody></tbody>
           </table>
         </div>
+        <div id="ordersPagination" class="admin-pagination" aria-label="Phân trang đơn hàng"></div>
       </section>
 
       <section class="card">
         <div class="section-heading">
           <div><span class="step">04</span><h2>Hiệu năng đọc hồ sơ</h2></div>
-          <p>Theo dõi parser/model và thời gian xử lý để tối ưu chi phí – tốc độ.</p>
+          <p>Mỗi trang hiển thị 10 lượt đọc hồ sơ, kèm tài khoản thực hiện để dễ đối soát.</p>
         </div>
         <div class="table-wrap">
           <table class="admin-table" id="importsTable">
-            <thead><tr><th>Thời điểm</th><th>Kiểu xử lý</th><th>Model</th><th>Thời gian</th><th>Trạng thái</th></tr></thead>
+            <thead><tr><th>Tài khoản</th><th>Thời điểm</th><th>Kiểu xử lý</th><th>Model</th><th>Thời gian</th><th>Trạng thái</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
+        <div id="importsPagination" class="admin-pagination" aria-label="Phân trang hiệu năng đọc hồ sơ"></div>
       </section>
     </div>
   </main>
@@ -124,6 +132,7 @@
         <label class="field"><span>Mật khẩu</span><input id="adminPassword" type="password" autocomplete="current-password" /></label>
         <button class="button primary" id="adminLoginBtn" type="button">Đăng nhập</button>
         <button class="button google-button" id="adminGoogleBtn" type="button">Đăng nhập bằng Google</button>
+        <div id="adminGoogleAuthHint" class="auth-provider-hint" hidden></div>
       </div>
     </section>
   </div>

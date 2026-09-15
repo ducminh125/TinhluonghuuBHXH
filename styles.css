@@ -314,3 +314,19 @@ input[readonly] { background: #f2f4f6; color: #48515a; font-weight: 700; }
 .admin-action-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.button.danger{background:#fff1f1;border:1px solid #efc0c0;color:#9f1d2a}.button.danger:hover{background:#fee2e2}.button.danger.small{padding:8px 10px}
 @media(max-width:820px){.benefit-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.benefit-tabs{grid-template-columns:1fr}.benefit-tab{text-align:left}.admin-action-row{min-width:190px}}
+
+/* v3.8 · auth provider diagnostics, account scroll frames, admin paging */
+.auth-provider-hint{margin-top:8px;padding:9px 11px;border:1px solid #f2d38a;background:#fff8e6;border-radius:10px;color:#7a5410;font-size:.78rem;line-height:1.45}
+.auth-provider-hint[hidden]{display:none}
+.google-button:disabled{opacity:.58;cursor:not-allowed;background:#f8fafc;color:#64748b}
+.account-scroll-list{overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;background:#fff}
+.history-scroll-list{max-height:305px}
+.order-scroll-list{max-height:305px}
+.account-scroll-list .account-list-row{min-height:58px;box-sizing:border-box}
+.admin-toolbar-search{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.admin-search-group{display:flex;align-items:center;gap:8px;flex:1 1 620px;min-width:0}
+.admin-search-group input[type=search]{flex:1;min-width:220px;min-height:38px;border:1px solid var(--line);border-radius:10px;padding:8px 11px;background:#fff}
+.admin-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:.8rem}
+.admin-page-actions{display:flex;gap:8px}
+.admin-page-summary{font-weight:600}
+@media(max-width:720px){.admin-search-group{flex:1 1 100%;flex-wrap:wrap}.admin-search-group input[type=search]{width:100%;flex-basis:100%}.admin-pagination{align-items:flex-start;flex-direction:column}.history-scroll-list,.order-scroll-list{max-height:305px}}
