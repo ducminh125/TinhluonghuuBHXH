@@ -11,9 +11,9 @@
   <header class="site-header admin-header">
     <div class="shell header-inner admin-header-inner">
       <div>
-        <p class="eyebrow">TRANG QUẢN TRỊ</p>
-        <h1>Vận hành dịch vụ tính chế độ BHXH</h1>
-        <p class="lead">Theo dõi tài khoản, lượt sử dụng, lịch sử tính chế độ, thời gian nhập hồ sơ, đơn hàng và các gói dịch vụ.</p>
+        <p class="eyebrow">TRUNG TÂM QUẢN TRỊ</p>
+        <h1>Quản lý dịch vụ BHXH</h1>
+        <p class="lead">Tài khoản, lượt sử dụng, gói dịch vụ, thanh toán và hiệu năng đọc hồ sơ.</p>
       </div>
       <div class="header-actions">
         <a class="button secondary small" href="/">← Về công cụ tính</a>
@@ -39,7 +39,7 @@
       <section class="card">
         <div class="section-heading">
           <div><span class="step">01</span><h2>Tài khoản đăng ký</h2></div>
-          <p>Mỗi trang hiển thị 10 tài khoản. Có thể tra cứu nhanh theo email, mã tài khoản hoặc tên người dùng.</p>
+          <p>Tra cứu và quản lý quyền sử dụng của từng tài khoản.</p>
         </div>
         <div id="userMessage"></div>
         <div class="admin-toolbar admin-toolbar-search">
@@ -62,7 +62,7 @@
       <section class="card">
         <div class="section-heading">
           <div><span class="step">02</span><h2>Gói đăng ký</h2></div>
-          <p>Có thể thêm gói mới, sửa giá/số lượt, bật/tắt bán hoặc xóa hẳn gói cũ. Các đơn hàng đã tạo vẫn được giữ để đối soát.</p>
+          <p>Quản lý giá, số lượt và trạng thái bán của từng gói.</p>
         </div>
         <div id="planMessage"></div>
         <form id="planForm" class="admin-plan-form">
@@ -86,7 +86,7 @@
       <section class="card">
         <div class="section-heading">
           <div><span class="step">03</span><h2>Đơn hàng chờ xác nhận</h2></div>
-          <p>payOS tự xác nhận thanh toán qua webhook và cộng lượt. Với đơn đang chờ, quản trị viên có thể xác nhận thủ công hoặc hủy thanh toán/QR khi cần.</p>
+          <p>Theo dõi giao dịch và xử lý các đơn đang chờ.</p>
         </div>
         <div id="orderMessage"></div>
         <div class="payos-admin-box">
@@ -109,7 +109,7 @@
       <section class="card">
         <div class="section-heading">
           <div><span class="step">04</span><h2>Hiệu năng đọc hồ sơ</h2></div>
-          <p>Mỗi trang hiển thị 10 lượt đọc hồ sơ, kèm tài khoản thực hiện để dễ đối soát.</p>
+          <p>Theo dõi tốc độ, phương thức xử lý và trạng thái đọc hồ sơ.</p>
         </div>
         <div class="table-wrap">
           <table class="admin-table" id="importsTable">
@@ -125,7 +125,7 @@
   <div class="modal-backdrop" id="adminAuthModal" hidden>
     <section class="modal-card auth-card">
       <h2>Đăng nhập quản trị</h2>
-      <p class="muted-copy">Đăng nhập bằng email/Google đã khai báo trong biến <b>ADMIN_EMAILS</b> trên Vercel. Server sẽ tự cấp quyền quản trị cho email này.</p>
+      <p class="muted-copy">Sử dụng tài khoản quản trị đã được cấu hình.</p>
       <div id="adminAuthMessage"></div>
       <div class="auth-section">
         <label class="field"><span>Email</span><input id="adminEmail" type="email" autocomplete="email" /></label>

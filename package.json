@@ -1,6 +1,6 @@
 {
   "name": "vn-pension-calculator",
-  "version": "3.8.0",
+  "version": "3.9.0",
   "private": true,
   "type": "module",
   "description": "Vietnam social-insurance benefits calculator: pension, one-time social insurance, unemployment and maternity, with account credits, history and multi-file import.",

@@ -39,14 +39,14 @@ async function refreshMe(){
   }catch(e){
     me=null;
     accountError=e.code==='DATABASE_SETUP_REQUIRED'
-      ? 'Cơ sở dữ liệu tài khoản chưa được cài đặt đầy đủ. Quản trị viên cần chạy migration v3.1.'
+      ? 'Hệ thống tài khoản đang được cấu hình. Vui lòng thử lại sau.'
       : (e.message||'Không tải được thông tin tài khoản.');
     renderAccount(); renderWalletDetail(); return null;
   }
 }
 function renderAccount(){
   const guest=$('accountGuest'),user=$('accountUser'),label=$('accountLabel'),quota=$('quotaSummary'),admin=$('adminLink');
-  if(!config?.authEnabled){hide(guest);show(user);if(label)label.textContent='Chế độ thử nghiệm';if(quota)quota.textContent='Cấu hình Supabase để bật tài khoản và hạn mức.';hide(admin);return;}
+  if(!config?.authEnabled){hide(guest);show(user);if(label)label.textContent='Chế độ thử nghiệm';if(quota)quota.textContent='Tài khoản và hạn mức chưa được bật.';hide(admin);return;}
   if(!session){show(guest);hide(user);hide(admin);return;}
   hide(guest);show(user);
   if(label)label.textContent=me?.profile?.display_name || session.user?.email || 'Tài khoản';
@@ -101,31 +101,29 @@ function applyGoogleAuthAvailability(){
   if(!btn)return;
   if(config?.googleAuthEnabled!==true){
     btn.disabled=true;
-    btn.textContent=config?.googleAuthChecked===false?'Tạm thời chưa xác minh được Google':'Đăng nhập Google chưa được bật';
+    btn.textContent=config?.googleAuthChecked===false?'Google tạm chưa khả dụng':'Google hiện chưa khả dụng';
     if(hint){
       hint.hidden=false;
-      hint.textContent=config?.googleAuthChecked===false
-        ?'Hệ thống chưa kiểm tra được trạng thái Google Provider. Bạn vẫn có thể đăng nhập bằng email/mật khẩu; quản trị viên nên kiểm tra kết nối Supabase.'
-        :'Google Provider đang tắt trong Supabase. Quản trị viên cần bật Authentication → Providers → Google và cấu hình Client ID/Client Secret.';
+      hint.textContent='Đăng nhập Google tạm chưa khả dụng. Vui lòng dùng email và mật khẩu.';
     }
   }else{
     btn.disabled=false;
     btn.textContent='Tiếp tục bằng Google';
     if(hint){
       hint.hidden=config?.googleAuthChecked!==false;
-      hint.textContent=config?.googleAuthChecked===false?'Không kiểm tra được trạng thái Google Provider. Nếu đăng nhập lỗi, hãy kiểm tra cấu hình Google trong Supabase.':'';
+      hint.textContent=config?.googleAuthChecked===false?'Google tạm chưa khả dụng. Vui lòng dùng email và mật khẩu.':'';
     }
   }
 }
 async function signInGoogle(){
   if(config?.googleAuthEnabled!==true){
-    setMessage('authMessage','error','Đăng nhập Google chưa được bật trong Supabase. Quản trị viên cần bật Google Provider trước.');
+    setMessage('authMessage','error','Đăng nhập Google hiện chưa khả dụng. Vui lòng dùng email và mật khẩu.');
     return;
   }
   const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:`${location.origin}/?login=google`}});
   if(error){
     const message=/provider.*(disabled|not enabled)|unsupported provider/i.test(error.message||'')
-      ? 'Google Provider chưa được bật trong Supabase. Vui lòng dùng email/mật khẩu hoặc liên hệ quản trị viên.'
+      ? 'Đăng nhập Google hiện chưa khả dụng. Vui lòng dùng email và mật khẩu.'
       : error.message;
     setMessage('authMessage','error',message);
   }
@@ -216,9 +214,9 @@ function showPaymentQr(payment){
   if(!img||!fallback)return;
   const url=buildVietQrUrl(payment);
   img.hidden=true;fallback.hidden=false;
-  fallback.innerHTML='<strong>Đang tải mã VietQR…</strong><span>Mã QR sẽ tự hiển thị, không cần mở trang payOS.</span>';
+  fallback.innerHTML='<strong>Đang tải mã VietQR…</strong><span>Vui lòng chờ trong giây lát.</span>';
   img.onload=()=>{img.hidden=false;fallback.hidden=true;};
-  img.onerror=()=>{img.hidden=true;fallback.hidden=false;fallback.innerHTML='<strong>Chưa tải được mã QR</strong><span>Bạn vẫn có thể chuyển khoản bằng thông tin bên cạnh hoặc mở trang payOS dự phòng.</span>';};
+  img.onerror=()=>{img.hidden=true;fallback.hidden=false;fallback.innerHTML='<strong>Chưa tải được mã QR</strong><span>Bạn vẫn có thể chuyển khoản bằng thông tin bên cạnh hoặc mở trang thanh toán dự phòng.</span>';};
   if(!url){img.removeAttribute('src');img.onerror();return;}
   img.src=url;
 }

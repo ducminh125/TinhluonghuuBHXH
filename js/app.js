@@ -338,7 +338,7 @@ function updateForecastPreview() {
   applyForecastInference(basePeriods, coefficientMode);
 
   if (!latest) {
-    $("forecastPreview").innerHTML = "Hãy nhập ít nhất một giai đoạn đóng để xác định mức đóng hiện tại.";
+    $("forecastPreview").innerHTML = "Thêm ít nhất một giai đoạn đóng để hệ thống xác định mức hiện tại.";
     return;
   }
   if (!retirementMonth) {
@@ -562,7 +562,7 @@ $("historyFiles").addEventListener("change", event => {
 $("importAiBtn").addEventListener("click", async () => {
   const files = [...($("historyFiles").files || [])];
   if (!files.length) {
-    setImportStatus("error", "Hãy chọn ít nhất một ảnh hoặc tệp hồ sơ trước.");
+    setImportStatus("error", "Vui lòng chọn ít nhất một ảnh hoặc tệp hồ sơ.");
     return;
   }
 
@@ -570,7 +570,7 @@ $("importAiBtn").addEventListener("click", async () => {
   const totalUploadBytes = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
   if (maxUploadBytes > 0 && totalUploadBytes > maxUploadBytes) {
     const mb = (maxUploadBytes / 1024 / 1024).toFixed(1).replace(".0", "");
-    setImportStatus("error", `<strong>Chưa gửi hồ sơ nên chưa bị trừ lượt.</strong> Tổng dung lượng ${files.length} tệp vượt giới hạn khoảng ${mb} MB của máy chủ hiện tại. Hãy giảm dung lượng ảnh/PDF hoặc chia thành lần đọc nhỏ hơn.`);
+    setImportStatus("error", `<strong>Chưa gửi hồ sơ nên chưa bị trừ lượt.</strong> Tổng dung lượng tệp vượt giới hạn khoảng ${mb} MB. Vui lòng giảm dung lượng hoặc chia hồ sơ thành nhiều lần.`);
     return;
   }
 
@@ -600,9 +600,9 @@ $("importAiBtn").addEventListener("click", async () => {
     if (!response.ok) {
       let message = payload.error || `HTTP ${response.status}`;
       if (response.status === 413) {
-        message = "Tổng dung lượng gửi lên vượt giới hạn của Vercel Function (4,5 MB mỗi request). Hãy giảm dung lượng ảnh/PDF hoặc chia hồ sơ thành các tệp nhỏ hơn. Yêu cầu bị chặn trước khi xử lý sẽ không bị trừ lượt.";
+        message = "Tổng dung lượng tệp vượt giới hạn tải lên. Vui lòng giảm dung lượng ảnh/PDF hoặc chia hồ sơ thành nhiều lần. Yêu cầu chưa được xử lý nên không bị trừ lượt.";
       } else if (response.status >= 500 && !payload.error) {
-        message = "Máy chủ gặp lỗi trước khi trả kết quả. Hãy thử lại; nếu lượt nhập bằng file/ảnh tự động đã bị trừ sau khi phiên xử lý được tạo, hệ thống sẽ tự hoàn lượt.";
+        message = "Hệ thống chưa thể đọc hồ sơ lúc này. Vui lòng thử lại; nếu lượt đã bị trừ, hệ thống sẽ tự hoàn lại.";
       }
       const err = new Error(message);
       err.status = response.status;
@@ -636,7 +636,7 @@ $("importAiBtn").addEventListener("click", async () => {
     }
   } catch (error) {
     const extra = location.protocol === "file:" || ["github.io"].some(x => location.hostname.endsWith(x))
-      ? " Chức năng đọc hồ sơ cần chạy bằng backend Node/Vercel để giữ bí mật API key."
+      ? " Chức năng đọc hồ sơ hiện chưa sẵn sàng."
       : "";
     const refundText = error.payload?.refunded
       ? " <strong>Lượt nhập bằng file/ảnh tự động đã được tự động hoàn lại tài khoản.</strong>"

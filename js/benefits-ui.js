@@ -29,7 +29,7 @@ function switchTab(name){
 function calculatorState(){return window.PensionCalculatorState||{getPeriods:()=>[],getEntryMode:()=> 'manual',getImportJobId:()=>null};}
 function refreshOneTimePeriodSummary(){
   const periods=calculatorState().getPeriods?.()||[];const el=$('oneTimePeriodSummary');
-  if(el)el.textContent=periods.length?`Đang có ${periods.length} giai đoạn quá trình đóng để tính.`:'Chưa có quá trình đóng. Hãy nhập hoặc đọc hồ sơ ở tab Lương hưu.';
+  if(el)el.textContent=periods.length?`Đang có ${periods.length} giai đoạn quá trình đóng để tính.`:'Chưa có quá trình đóng. Mở tab Lương hưu để thêm dữ liệu.';
 }
 
 async function calculateCommercial(body){

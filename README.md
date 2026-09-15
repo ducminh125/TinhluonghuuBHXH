@@ -1,4 +1,4 @@
-# VN Social Insurance Benefits Calculator v3.8
+# VN Social Insurance Benefits Calculator v3.9
 
 Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 - lương hưu;
@@ -9,6 +9,17 @@ Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 Hệ thống dùng Supabase cho tài khoản/database, payOS cho VietQR + webhook thanh toán, và ShopAIKey chỉ cho hồ sơ ảnh/PDF cần model. Phép tính quyền lợi do engine quy tắc trong source thực hiện, không giao cho AI tự quyết định số tiền.
 
 > Kết quả là tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH, hồ sơ thực tế và văn bản có hiệu lực tại thời điểm giải quyết.
+
+
+## Mới trong v3.9 — hoàn thiện UI/UX
+
+- Giao diện công cụ được thiết kế lại theo hướng thân thiện, chuyên nghiệp, ít chữ và rõ thứ tự thao tác hơn.
+- 4 chế độ được đưa vào thanh chọn rõ ràng; trên mobile chuyển sang cuộn ngang để tiết kiệm không gian.
+- Phần nhập hồ sơ tự động được tinh gọn; hướng dẫn chi tiết chuyển vào mục mở rộng khi người dùng cần.
+- Sidebar pháp lý dài được thay bằng hướng dẫn 3 bước và cơ sở tính dạng thu gọn.
+- Chuẩn hóa card, form, button, trạng thái focus, popup, thanh toán và khu vực tài khoản theo cùng hệ thống thị giác.
+- Các thông báo dành cho người dùng cuối không còn nhắc các thuật ngữ hạ tầng như Supabase/Vercel/backend.
+- Không thay đổi công thức, quota, lịch sử, payOS hay database schema.
 
 ## Mới trong v3.8
 
