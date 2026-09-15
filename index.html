@@ -372,6 +372,36 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="paymentModal" hidden>
+    <section class="modal-card payment-card" role="dialog" aria-modal="true" aria-labelledby="paymentTitle">
+      <button class="modal-close" id="paymentClose" type="button" aria-label="Đóng">×</button>
+      <div class="payment-heading">
+        <div>
+          <p class="eyebrow">THANH TOÁN CHUYỂN KHOẢN</p>
+          <h2 id="paymentTitle">Quét QR để thanh toán</h2>
+          <p id="paymentPlanName" class="muted-copy"></p>
+        </div>
+        <span id="paymentStatus" class="payment-status pending">Chờ thanh toán</span>
+      </div>
+      <div class="payment-layout">
+        <div class="payment-qr-wrap">
+          <canvas id="paymentQrCanvas" width="280" height="280" aria-label="Mã QR thanh toán"></canvas>
+          <small>Quét bằng ứng dụng ngân hàng. Không sửa số tiền hoặc nội dung chuyển khoản.</small>
+        </div>
+        <div class="payment-details">
+          <div><span>Số tiền</span><strong id="paymentAmount">—</strong></div>
+          <div><span>Ngân hàng / tài khoản nhận</span><strong id="paymentBank">—</strong><small id="paymentAccount">—</small></div>
+          <div><span>Chủ tài khoản</span><strong id="paymentAccountName">—</strong></div>
+          <div class="payment-code-row"><span>Nội dung chuyển khoản</span><strong id="paymentCode">—</strong><button class="button secondary small" id="copyPaymentCode" type="button">Sao chép</button></div>
+          <div><span>Mã đơn hàng</span><strong id="paymentOrderCode">—</strong></div>
+          <p class="payment-help">Sau khi ngân hàng ghi nhận tiền, hệ thống sẽ tự xác nhận và cộng lượt. Bạn không cần gửi ảnh chuyển khoản.</p>
+          <a id="paymentCheckoutLink" class="button primary" target="_blank" rel="noopener">Mở trang thanh toán payOS</a>
+        </div>
+      </div>
+      <div id="paymentMessage" aria-live="polite"></div>
+    </section>
+  </div>
+
   <template id="periodRowTemplate">
     <tr class="period-row">
       <td><input data-field="from" type="text" inputmode="numeric" placeholder="mm/yyyy" maxlength="7" aria-label="Từ tháng" required /></td>
@@ -415,6 +445,7 @@
   </template>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
   <script type="module" src="./js/account.js"></script>
   <script type="module" src="./js/app.js"></script>
 </body>

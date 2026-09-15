@@ -1,4 +1,52 @@
-# VN Pension Calculator v3.2 — sửa luồng đọc hồ sơ và hoàn lượt
+# VN Pension Calculator v3.3 — QR payOS và tự động xác nhận thanh toán
+
+Bản v3.3 bổ sung luồng thương mại hoàn chỉnh: **chọn gói → tạo QR VietQR động → thanh toán → webhook xác minh → tự cộng lượt**. QR do payOS tạo theo từng đơn, chứa sẵn số tiền, tài khoản nhận và nội dung chuyển khoản.
+
+## Thanh toán v3.3
+
+### Biến môi trường
+
+```env
+APP_URL=https://tinhluonghuu-bhxh.vercel.app
+PAYOS_CLIENT_ID=...
+PAYOS_API_KEY=...
+PAYOS_CHECKSUM_KEY=...
+PAYMENT_BANK_NAME=VCB
+PAYOS_PAYMENT_EXPIRY_MINUTES=30
+```
+
+### Luồng
+
+```text
+Khách chọn gói
+→ backend tạo order pending
+→ gọi payOS tạo payment request
+→ frontend hiển thị QR + số tiền + tài khoản + mã thanh toán
+→ ngân hàng ghi nhận chuyển khoản
+→ payOS gọi /api/payments/payos/webhook
+→ backend kiểm tra HMAC + orderCode + amount + description
+→ confirm_paid_order đổi pending → paid và cộng lượt
+→ frontend tự tải lại ví/lịch sử đơn
+```
+
+Webhook không tin vào `returnUrl`; return URL chỉ phục vụ giao diện. Xác nhận dịch vụ dựa trên webhook đã kiểm tra chữ ký. Khi trang QR còn mở, frontend cũng polling `/api/orders/:id/status` để đối soát trạng thái với payOS nếu webhook đến chậm.
+
+### Migration production
+
+Chạy `supabase/migration-v3.3.sql` để thêm RPC `confirm_paid_order`, giúp cập nhật đơn và cộng lượt trong cùng transaction. Code có fallback tương thích schema cũ, nhưng production nên chạy migration.
+
+### Admin
+
+Tại `/admin`, khu vực đơn hàng có nút **Đăng ký / cập nhật Webhook**. Nút này gọi payOS `confirm-webhook` và cấu hình URL:
+
+```text
+https://tinhluonghuu-bhxh.vercel.app/api/payments/payos/webhook
+```
+
+Xem `DEPLOY-V3.3.md` để triển khai từng bước.
+
+---
+
 
 Web ước tính lương hưu Việt Nam theo Luật BHXH 2024, có hệ thống tài khoản, hạn mức sử dụng, lịch sử, gói trả phí và trang quản trị. Người dùng có thể nhập quá trình đóng trực tiếp hoặc nhập từ ảnh/PDF/Word/Excel. Phép tính cuối cùng được thực hiện bởi **engine quy tắc trong source code**, không giao cho mô hình AI tự quyết định số tiền lương hưu.
 

@@ -80,9 +80,17 @@
       <section class="card">
         <div class="section-heading">
           <div><span class="step">03</span><h2>Đơn hàng chờ xác nhận</h2></div>
-          <p>Bản MVP dùng chuyển khoản ngân hàng; admin xác nhận thanh toán để hệ thống tự cộng lượt.</p>
+          <p>payOS tự xác nhận thanh toán qua webhook và cộng lượt; nút xác nhận thủ công chỉ dùng khi cần xử lý ngoại lệ.</p>
         </div>
         <div id="orderMessage"></div>
+        <div class="payos-admin-box">
+          <div>
+            <strong>Thanh toán tự động payOS</strong>
+            <p id="payosAdminStatus">Đang kiểm tra cấu hình…</p>
+            <code id="payosWebhookUrl"></code>
+          </div>
+          <button class="button secondary small" id="confirmPayosWebhookBtn" type="button">Đăng ký / cập nhật Webhook</button>
+        </div>
         <div class="table-wrap">
           <table class="admin-table" id="ordersTable">
             <thead><tr><th>Mã</th><th>Tài khoản</th><th>Gói</th><th>Số tiền</th><th>Ngày tạo</th><th>Trạng thái</th><th></th></tr></thead>

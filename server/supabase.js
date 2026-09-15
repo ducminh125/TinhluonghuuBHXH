@@ -203,6 +203,53 @@ export async function refundImportCreditOnce(userId, jobId, reason = 'import_fai
   throw error;
 }
 
+
+export async function confirmOrderPayment(orderId, reference = '', metadata = {}) {
+  // Preferred path: one atomic database transaction (migration v3.3).
+  const { data, error } = await supabaseAdmin.rpc('confirm_paid_order', {
+    p_order_id: orderId,
+    p_reference: String(reference || '').slice(0, 200),
+    p_metadata: metadata || {}
+  });
+  if (!error) return Array.isArray(data) ? data[0] : data;
+
+  const normalized = normalizeDatabaseError(error);
+  const missingRpc = normalized?.code === 'DATABASE_SETUP_REQUIRED' || error?.code === 'PGRST202' || /confirm_paid_order/i.test(error?.message || '');
+  if (!missingRpc) throw error;
+
+  // Compatibility fallback for v3.1/v3.2 databases. The conditional update is idempotent:
+  // only one webhook/polling request can move a pending order to paid.
+  const now = new Date().toISOString();
+  const { data: claimed, error: claimError } = await supabaseAdmin.from('orders')
+    .update({ status: 'paid', approved_at: now, updated_at: now })
+    .eq('id', orderId).eq('status', 'pending').select('*').maybeSingle();
+  if (claimError) throw normalizeDatabaseError(claimError);
+  if (!claimed) {
+    const { data: existing, error: existingError } = await supabaseAdmin.from('orders').select('*').eq('id', orderId).maybeSingle();
+    if (existingError) throw normalizeDatabaseError(existingError);
+    if (existing?.status === 'paid') return existing;
+    const e = new Error(`ORDER_NOT_PENDING: ${existing?.status || 'missing'}`);
+    e.code = 'ORDER_NOT_PENDING';
+    throw e;
+  }
+
+  const eventMeta = { order_id: claimed.id, payment_code: claimed.payment_code, reference, provider: 'payos', ...metadata, compatibilityMode: 'v3.2' };
+  const { error: grantError } = await supabaseAdmin.rpc('grant_credits', {
+    p_user_id: claimed.user_id,
+    p_direct: claimed.direct_credits,
+    p_file: claimed.file_credits,
+    p_history: claimed.history_credits,
+    p_action: 'payos_payment',
+    p_metadata: eventMeta
+  });
+  if (grantError) {
+    // Restore pending so payOS retry / reconciliation can safely try again.
+    await supabaseAdmin.from('orders').update({ status: 'pending', approved_at: null, updated_at: new Date().toISOString() }).eq('id', orderId).eq('status', 'paid');
+    throw normalizeDatabaseError(grantError);
+  }
+  return claimed;
+}
+
 export async function refundCredit(userId, bucket, action, metadata = {}) {
   const { data, error } = await supabaseAdmin.rpc('refund_credit', {
     p_user_id: userId,

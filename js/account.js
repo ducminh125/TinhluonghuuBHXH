@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 const money = new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0});
 
 let config=null, client=null, session=null, me=null, accountError='';
+let paymentPollTimer=null, paymentPollBusy=false, currentPaymentOrderId=null;
 
 function esc(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
 function show(el){if(el)el.hidden=false;} function hide(el){if(el)el.hidden=true;}
@@ -124,23 +125,67 @@ async function openPlans(){
   if(config?.authEnabled&&!session){openAuth();return;}
   show($('plansModal'));setMessage('planMessage','','');await loadPlans();
 }
+function stopPaymentPolling(){if(paymentPollTimer){clearInterval(paymentPollTimer);paymentPollTimer=null;}paymentPollBusy=false;currentPaymentOrderId=null;}
+function setPaymentStatus(status,label){
+  const el=$('paymentStatus');if(!el)return;el.className=`payment-status ${status}`;el.textContent=label;
+}
+function closePayment(){stopPaymentPolling();hide($('paymentModal'));}
+async function drawPaymentQr(text){
+  const canvas=$('paymentQrCanvas');if(!canvas||!text)return;
+  try{
+    if(window.QRCode?.toCanvas)await window.QRCode.toCanvas(canvas,text,{width:280,margin:1,errorCorrectionLevel:'M'});
+  }catch(e){console.warn('Không vẽ được QR',e);}
+}
+async function renderPayment(order,payment){
+  hide($('plansModal'));show($('paymentModal'));currentPaymentOrderId=order.id;
+  $('paymentPlanName').textContent=order.plan_name||'';
+  $('paymentAmount').textContent=money.format(payment.amount||order.amount_vnd||0);
+  $('paymentBank').textContent=payment.bankName||'Tài khoản nhận thanh toán';
+  $('paymentAccount').textContent=payment.accountNumber||'—';
+  $('paymentAccountName').textContent=payment.accountName||'—';
+  $('paymentCode').textContent=payment.description||payment.paymentCode||'—';
+  $('paymentOrderCode').textContent=String(payment.orderCode||order.payment_code||'—');
+  const link=$('paymentCheckoutLink');if(link){link.href=payment.checkoutUrl||'#';link.hidden=!payment.checkoutUrl;}
+  setPaymentStatus('pending','Chờ thanh toán');setMessage('paymentMessage','','');
+  await drawPaymentQr(payment.qrCode||'');
+  startPaymentPolling(order.id);
+}
+async function checkPaymentStatus(orderId){
+  if(paymentPollBusy||!session||!orderId)return;paymentPollBusy=true;
+  try{
+    const data=await jsonResponse(await authorizedFetch(`/api/orders/${encodeURIComponent(orderId)}/status`));
+    const status=data.order?.status;
+    if(status==='paid'){
+      stopPaymentPolling();setPaymentStatus('paid','Đã thanh toán');
+      setMessage('paymentMessage','success','Thanh toán đã được xác nhận. Lượt sử dụng đã tự động cộng vào tài khoản.');
+      if(data.wallet)me={...(me||{}),wallet:data.wallet};else await refreshMe();
+      renderAccount();renderWalletDetail();await loadOrders();
+    }else if(status==='cancelled'||status==='expired'){
+      stopPaymentPolling();setPaymentStatus('cancelled',status==='cancelled'?'Đã hủy':'Đã hết hạn');
+      setMessage('paymentMessage','error','Đơn thanh toán không còn hiệu lực. Vui lòng chọn lại gói để tạo QR mới.');
+    }else setPaymentStatus('pending','Chờ thanh toán');
+  }catch(e){console.warn('Không kiểm tra được thanh toán',e);}finally{paymentPollBusy=false;}
+}
+function startPaymentPolling(orderId){
+  stopPaymentPolling();currentPaymentOrderId=orderId;checkPaymentStatus(orderId);
+  paymentPollTimer=setInterval(()=>checkPaymentStatus(orderId),3000);
+}
 async function createOrder(planId){
   if(!session)return openAuth();
+  setMessage('planMessage','','');
   try{
     const data=await jsonResponse(await authorizedFetch('/api/orders',{method:'POST',body:JSON.stringify({planId})}));
-    const b=data.bank||{},o=data.order;
-    const lines=[`Mã thanh toán: ${o.payment_code}`,`Số tiền: ${money.format(o.amount_vnd)}`];
-    if(b.bankName||b.accountNumber)lines.push(`Chuyển khoản: ${b.bankName||''} ${b.accountNumber||''} ${b.accountName||''}`.trim());
-    setMessage('planMessage','success',`${lines.join(' · ')}. Sau khi thanh toán được xác nhận, lượt sử dụng sẽ tự cộng vào tài khoản.`);
+    if(!data.payment?.qrCode)throw new Error('Nhà cung cấp thanh toán chưa trả về mã QR. Vui lòng thử lại.');
+    await renderPayment(data.order,data.payment);
     await loadOrders();
-  }catch(e){setMessage('planMessage','error',e.message||'Không tạo được đơn hàng.');}
+  }catch(e){setMessage('planMessage','error',e.message||'Không tạo được đơn thanh toán.');}
 }
 async function loadOrders(){
   if(!session)return;const host=$('orderList');if(!host)return;
   host.innerHTML='<p>Đang tải đơn hàng…</p>';
   try{
     const data=await jsonResponse(await authorizedFetch('/api/orders/mine'));
-    host.innerHTML=(data.orders||[]).slice(0,8).map(o=>`<div class="account-list-row"><span>${esc(o.plan_name)} · ${money.format(o.amount_vnd)}</span><b>${o.status==='paid'?'Đã thanh toán':o.status==='pending'?'Chờ xác nhận':esc(o.status)}</b></div>`).join('')||'<p>Chưa có đơn hàng.</p>';
+    host.innerHTML=(data.orders||[]).slice(0,8).map(o=>`<div class="account-list-row"><span>${esc(o.plan_name)} · ${money.format(o.amount_vnd)}<small>Mã đơn: ${esc(o.payment_code||'—')}</small></span><b>${o.status==='paid'?'Đã thanh toán':o.status==='pending'?'Chờ thanh toán':o.status==='cancelled'?'Đã hủy':esc(o.status)}</b></div>`).join('')||'<p>Chưa có đơn hàng.</p>';
   }catch(e){host.innerHTML=`<div class="alert error">${esc(e.code==='DATABASE_SETUP_REQUIRED'?'Chức năng đơn hàng chưa được quản trị viên cài đặt đầy đủ.':e.message)}</div>`;}
 }
 async function loadHistory(){
@@ -158,6 +203,17 @@ async function saveHistory(payload){
   me={...(me||{}),wallet:data.wallet||me?.wallet};renderAccount();renderWalletDetail();return data;
 }
 
+async function handlePaymentReturn(){
+  const params=new URLSearchParams(location.search);
+  if(!session)return;
+  if(params.get('payment')==='success'||String(params.get('status')||'').toUpperCase()==='PAID'){
+    await refreshMe();await openAccount();
+    history.replaceState({},'',location.pathname);
+  }else if(params.get('payment')==='cancel'||String(params.get('status')||'').toUpperCase()==='CANCELLED'){
+    await openAccount();history.replaceState({},'',location.pathname);
+  }
+}
+
 async function init(){
   config=await fetch('/api/config').then(r=>r.json()).catch(()=>({authEnabled:false}));
   if(config.authEnabled && window.supabase?.createClient){
@@ -167,9 +223,10 @@ async function init(){
     await refreshMe();
   }else renderAccount();
   $('loginBtn')?.addEventListener('click',openAuth);$('accountBtn')?.addEventListener('click',openAccount);$('logoutBtn')?.addEventListener('click',signOut);
-  $('authClose')?.addEventListener('click',closeAuth);$('accountClose')?.addEventListener('click',closeAccount);$('plansClose')?.addEventListener('click',()=>hide($('plansModal')));
+  $('authClose')?.addEventListener('click',closeAuth);$('accountClose')?.addEventListener('click',closeAccount);$('plansClose')?.addEventListener('click',()=>hide($('plansModal')));$('paymentClose')?.addEventListener('click',closePayment);$('copyPaymentCode')?.addEventListener('click',async()=>{const text=$('paymentCode')?.textContent||'';try{await navigator.clipboard.writeText(text);setMessage('paymentMessage','success','Đã sao chép nội dung chuyển khoản.');}catch{}});
   $('emailLoginBtn')?.addEventListener('click',signInEmail);$('emailSignupBtn')?.addEventListener('click',signUpEmail);$('googleLoginBtn')?.addEventListener('click',signInGoogle);
   $('buyCreditsBtn')?.addEventListener('click',openPlans);$('accountBuyBtn')?.addEventListener('click',openPlans);
+  await handlePaymentReturn();
 }
 
 window.PensionAccount={

@@ -81,6 +81,22 @@ async function createPlan(ev){
 }
 async function savePlan(row){try{const body={priceVnd:+row.querySelector('.p-price').value||0,direct:+row.querySelector('.p-direct').value||0,file:+row.querySelector('.p-file').value||0,history:+row.querySelector('.p-history').value||0,active:row.querySelector('.p-active').checked};await api(`/api/admin/plans/${row.dataset.plan}`,{method:'PATCH',body:JSON.stringify(body)});msg('planMessage','success','Đã cập nhật gói.');await loadPlans();}catch(e){msg('planMessage','error',e.message);}}
 
+async function loadPayosStatus(){
+  const status=$('payosAdminStatus'),url=$('payosWebhookUrl'),btn=$('confirmPayosWebhookBtn');
+  if(!status)return;
+  try{
+    const d=await api('/api/admin/payments/payos/status');
+    status.textContent=d.configured?'payOS đã có đủ khóa kết nối trên server.':'Chưa cấu hình đủ PAYOS_CLIENT_ID / PAYOS_API_KEY / PAYOS_CHECKSUM_KEY.';
+    status.className=d.configured?'ok-text':'warn-text';
+    if(url)url.textContent=d.webhookUrl||'';if(btn)btn.disabled=!d.configured;
+  }catch(e){status.textContent=e.message;if(btn)btn.disabled=true;}
+}
+async function confirmPayos(){
+  const btn=$('confirmPayosWebhookBtn');if(btn)btn.disabled=true;
+  try{const d=await api('/api/admin/payments/payos/confirm-webhook',{method:'POST',body:'{}'});msg('orderMessage','success',`Đã đăng ký webhook payOS: ${d.webhookUrl}`);await loadPayosStatus();}
+  catch(e){msg('orderMessage','error',e.message);}finally{if(btn)btn.disabled=false;}
+}
+
 async function loadOrders(){
   const d=await api('/api/admin/orders');
   $('ordersTable').querySelector('tbody').innerHTML=(d.orders||[]).map(o=>`<tr><td><b>${esc(o.payment_code)}</b></td><td>${esc(o.user_contact||o.user_id)}</td><td>${esc(o.plan_name)}</td><td>${esc(money.format(o.amount_vnd||0))}</td><td>${esc(viDate(o.created_at))}</td><td><span class="admin-pill ${o.status==='paid'?'ok':o.status==='pending'?'warn':''}">${esc(o.status)}</span></td><td>${o.status==='pending'?`<button class="button primary small approve-order" data-order="${esc(o.id)}" type="button">Xác nhận đã thanh toán</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="7">Chưa có đơn hàng.</td></tr>';
@@ -88,11 +104,12 @@ async function loadOrders(){
 }
 async function approveOrder(id){try{await api(`/api/admin/orders/${id}/approve`,{method:'POST',body:'{}'});msg('orderMessage','success','Đã xác nhận thanh toán và cộng lượt vào tài khoản.');await Promise.all([loadOrders(),loadMetrics(),loadUsers()]);}catch(e){msg('orderMessage','error',e.message);}}
 async function refreshAll(){
-  const tasks=[loadMetrics(),loadUsers(),loadPlans(),loadOrders()];
+  const tasks=[loadMetrics(),loadUsers(),loadPlans(),loadOrders(),loadPayosStatus()];
   const results=await Promise.allSettled(tasks);
   const failed=results.find(r=>r.status==='rejected');
   if(failed)msg('userMessage','error',failed.reason?.message||'Một phần trang quản trị chưa tải được. Hãy kiểm tra database.');
 }
 
+$('confirmPayosWebhookBtn')?.addEventListener('click',confirmPayos);
 $('adminLoginBtn').addEventListener('click',emailLogin);$('adminGoogleBtn').addEventListener('click',googleLogin);$('adminLogoutBtn').addEventListener('click',async()=>{if(client)await client.auth.signOut();location.href='/';});$('refreshUsersBtn').addEventListener('click',loadUsers);$('planForm').addEventListener('submit',createPlan);
 authenticate().catch(e=>showLogin(e.message));
