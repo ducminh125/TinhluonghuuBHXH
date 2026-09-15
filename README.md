@@ -1,8 +1,17 @@
-# VN Pension Calculator v3.0 — bản thương mại hóa
+# VN Pension Calculator v3.1 — tài khoản và thương mại hóa
 
 Web ước tính lương hưu Việt Nam theo Luật BHXH 2024, có hệ thống tài khoản, hạn mức sử dụng, lịch sử, gói trả phí và trang quản trị. Người dùng có thể nhập quá trình đóng trực tiếp hoặc nhập từ ảnh/PDF/Word/Excel. Phép tính cuối cùng được thực hiện bởi **engine quy tắc trong source code**, không giao cho mô hình AI tự quyết định số tiền lương hưu.
 
 > Đây là công cụ tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH và văn bản có hiệu lực tại thời điểm giải quyết chế độ.
+
+## Cập nhật bắt buộc khi nâng từ v3.0 lên v3.1
+
+1. Supabase → **SQL Editor** → chạy toàn bộ `supabase/migration-v3.1.sql`. File này tạo/bổ sung `profiles`, `wallets`, `plans`, `orders`, `calculation_history`... và seed 3 gói mẫu. Cuối migration có lệnh reload PostgREST schema cache để xử lý lỗi `Could not find the table 'public.plans' in the schema cache`.
+2. Vercel → Project → Settings → Environment Variables → thêm `ADMIN_EMAILS=email-quan-tri-cua-ban`. Sau đó Redeploy.
+3. Supabase → Authentication → URL Configuration: Site URL = URL production; thêm `https://tinhluonghuu-bhxh.vercel.app/auth/confirmed` vào Redirect URLs.
+4. Supabase → Authentication → Providers: bật Email và Google nếu dùng; **tắt Phone**.
+5. Tài khoản cũ thiếu ví/profile sẽ được server tự backfill khi đăng nhập lại.
+
 
 ## 1. Điểm mới của v3
 
@@ -20,7 +29,7 @@ Ba loại lượt được lưu ở `wallets` và trừ **phía server**. Không
 
 - Email + mật khẩu;
 - Google/Gmail qua OAuth;
-- Số điện thoại qua OTP SMS.
+
 
 ### Gói dịch vụ
 
@@ -133,21 +142,21 @@ Các bảng chính:
 
 RLS được bật; các bảng nghiệp vụ không mở trực tiếp cho browser. Backend dùng server credential để thực hiện nghiệp vụ sau khi xác thực JWT người dùng.
 
-### Tạo admin đầu tiên
+### Tạo admin
 
-Sau khi tài khoản đã đăng ký:
+Không có form “đăng ký admin” riêng. Thêm email quản trị vào Vercel Environment Variable:
 
-```sql
-update public.profiles
-set role = 'admin'
-where user_id = '<UUID tài khoản>';
+```env
+ADMIN_EMAILS=your-admin@gmail.com
 ```
+
+Sau đó đăng ký/đăng nhập email hoặc Google bình thường. Ở request đầu tiên, server tự nâng `profiles.role` thành `admin`. Có thể khai báo nhiều email, phân cách bằng dấu phẩy.
 
 ## 5. Cấu hình Supabase Auth
 
 ### Email
 
-Email/password dùng trực tiếp Supabase Auth. Nên bật xác minh email khi chạy production.
+Email/password dùng trực tiếp Supabase Auth. Nên bật xác minh email khi chạy production. Khi đăng ký, frontend đặt `emailRedirectTo` về `/auth/confirmed`; trang này hiển thị “Đăng ký thành công” và giữ phiên đăng nhập nếu Supabase trả session qua URL.
 
 ### Google/Gmail
 
@@ -159,10 +168,6 @@ Trong Supabase Dashboard:
 4. thêm domain production và redirect URL theo hướng dẫn Supabase.
 
 Frontend gọi `signInWithOAuth({ provider: 'google' })`.
-
-### Điện thoại
-
-Bật Phone provider và cấu hình SMS provider. OTP gửi SMS phát sinh chi phí riêng; production nên bật CAPTCHA/rate limit để chống spam OTP.
 
 ## 6. Cấu hình môi trường
 
@@ -181,6 +186,7 @@ AI_BATCH_CONCURRENCY=2
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 SUPABASE_SECRET_KEY=sb_secret_...
+ADMIN_EMAILS=your-admin@gmail.com
 
 PAYMENT_BANK_NAME=VCB
 PAYMENT_BANK_ACCOUNT=...
@@ -228,7 +234,7 @@ Hồ sơ BHXH chứa dữ liệu cá nhân và thu nhập. Bản v3 theo hướn
 Repo đã có kiểm tra quota server-side, nhưng production nên bổ sung:
 
 1. rate limit theo IP + user cho `/api/import`, `/api/calculate`, login và tạo đơn;
-2. CAPTCHA cho đăng ký và SMS OTP;
+2. CAPTCHA/rate limit cho đăng ký, đăng nhập và các endpoint nhạy cảm;
 3. giới hạn MIME/file signature, không chỉ extension;
 4. malware scan nếu sau này lưu file;
 5. timeout + circuit breaker cho AI provider;

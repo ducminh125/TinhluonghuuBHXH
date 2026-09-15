@@ -16,7 +16,9 @@ import {
   requireAdmin,
   getWallet,
   consumeCredit,
-  refundCredit
+  refundCredit,
+  normalizeDatabaseError,
+  databaseStatus
 } from './supabase.js';
 
 const __filename=fileURLToPath(import.meta.url);
@@ -36,13 +38,18 @@ app.get(['/','/index.html'],(_req,res)=>{res.setHeader('Cache-Control','no-store
 app.get(['/admin','/admin.html'],(_req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(rootDir,'admin.html'));});
 app.get(['/privacy','/privacy.html'],(_req,res)=>res.sendFile(path.join(rootDir,'privacy.html')));
 app.get(['/terms','/terms.html'],(_req,res)=>res.sendFile(path.join(rootDir,'terms.html')));
+app.get(['/auth/confirmed','/auth-confirmed.html'],(_req,res)=>{res.setHeader('Cache-Control','no-store');res.sendFile(path.join(rootDir,'auth-confirmed.html'));});
 
 function bankConfig(){return {
   bankName:process.env.PAYMENT_BANK_NAME||'',
   accountNumber:process.env.PAYMENT_BANK_ACCOUNT||'',
   accountName:process.env.PAYMENT_ACCOUNT_NAME||''
 };}
-function safeUser(user){return {id:user.id,email:user.email||null,phone:user.phone||null,created_at:user.created_at};}
+function safeUser(user){return {id:user.id,email:user.email||null,created_at:user.created_at};}
+function sendDbError(res,error,fallback='Không thể tải dữ liệu.') {
+  const e=normalizeDatabaseError(error);
+  return res.status(e?.status||500).json({code:e?.code||'DATABASE_ERROR',error:e?.message||fallback});
+}
 function stableHash(value){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 function periodHash(periods=[]){
   const selected=periods.map(p=>({
@@ -169,17 +176,20 @@ app.get('/api/config',(_req,res)=>{
   });
 });
 app.get('/api/health',(_req,res)=>res.json({ok:true,authConfigured:supabaseConfigured,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-3-flash-preview',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'}));
+app.get('/api/system/status',async(_req,res)=>{
+  try{res.json(await databaseStatus());}
+  catch(e){sendDbError(res,e,'Không kiểm tra được cơ sở dữ liệu.');}
+});
 
 app.get('/api/plans',async(_req,res)=>{
   if(!supabaseConfigured)return res.json({plans:[]});
   const {data,error}=await supabaseAdmin.from('plans').select('*').eq('active',true).order('sort_order').order('price_vnd');
-  if(error)return res.status(500).json({error:error.message});
+  if(error)return sendDbError(res,error,'Không tải được gói sử dụng.');
   res.json({plans:data||[]});
 });
 
 app.get('/api/me',requireUser,async(req,res)=>{
-  const wallet=await getWallet(req.user.id);
-  res.json({user:safeUser(req.user),profile:req.profile,wallet});
+  res.json({user:safeUser(req.user),profile:req.profile,wallet:req.wallet||await getWallet(req.user.id)});
 });
 
 app.post('/api/orders',requireUser,async(req,res)=>{
@@ -191,28 +201,28 @@ app.post('/api/orders',requireUser,async(req,res)=>{
     const row={user_id:req.user.id,plan_id:plan.id,plan_name:plan.name,amount_vnd:plan.price_vnd,direct_credits:plan.direct_credits,file_credits:plan.file_credits,history_credits:plan.history_credits,payment_code:code,payment_method:'bank_transfer'};
     const {data,error:insertError}=await supabaseAdmin.from('orders').insert(row).select('*').single(); if(insertError)throw insertError;
     res.json({order:data,bank:bankConfig()});
-  }catch(e){res.status(400).json({error:e.message||'Không tạo được đơn hàng.'});}
+  }catch(e){const n=normalizeDatabaseError(e);res.status(n.status||400).json({code:n.code||'ORDER_CREATE_FAILED',error:n.message||'Không tạo được đơn hàng.'});}
 });
 app.get('/api/orders/mine',requireUser,async(req,res)=>{
   const {data,error}=await supabaseAdmin.from('orders').select('*').eq('user_id',req.user.id).order('created_at',{ascending:false}).limit(30);
-  if(error)return res.status(500).json({error:error.message});res.json({orders:data||[]});
+  if(error)return sendDbError(res,error,'Không tải được đơn hàng.');res.json({orders:data||[]});
 });
 
 app.get('/api/history',requireUser,async(req,res)=>{
   const limit=Math.min(50,Math.max(1,Number(req.query.limit||20)));
   const {data,error}=await supabaseAdmin.from('calculation_history').select('id,title,mode,result_json,created_at').eq('user_id',req.user.id).order('created_at',{ascending:false}).limit(limit);
-  if(error)return res.status(500).json({error:error.message});res.json({history:data||[]});
+  if(error)return sendDbError(res,error,'Không tải được lịch sử.');res.json({history:data||[]});
 });
 app.post('/api/history',requireUser,async(req,res)=>{
   try{
     const {data,error}=await supabaseAdmin.rpc('save_calculation_history',{p_user_id:req.user.id,p_title:String(req.body?.title||'Kết quả lương hưu').slice(0,120),p_mode:req.body?.mode==='file'?'file':'manual',p_input:req.body?.input||{},p_result:req.body?.result||{}});
     if(error){if(/NO_CREDIT/i.test(error.message||''))return res.status(402).json({error:'Bạn đã hết lượt lưu lịch sử. Vui lòng mua thêm gói.'});throw error;}
     res.json({ok:true,id:data,wallet:await getWallet(req.user.id)});
-  }catch(e){res.status(400).json({error:e.message||'Không lưu được lịch sử.'});}
+  }catch(e){const n=normalizeDatabaseError(e);res.status(n.status||400).json({code:n.code||'HISTORY_SAVE_FAILED',error:n.message||'Không lưu được lịch sử.'});}
 });
 app.delete('/api/history/:id',requireUser,async(req,res)=>{
   const {error}=await supabaseAdmin.from('calculation_history').delete().eq('id',req.params.id).eq('user_id',req.user.id);
-  if(error)return res.status(400).json({error:error.message});res.json({ok:true});
+  if(error)return sendDbError(res,error,'Không xóa được lịch sử.');res.json({ok:true});
 });
 
 app.post('/api/calculate',requireUser,async(req,res)=>{
@@ -315,7 +325,7 @@ app.patch('/api/admin/users/:id/status',requireAdmin,async(req,res)=>{
   res.json({profile:data});
 });
 app.get('/api/admin/plans',requireAdmin,async(_req,res)=>{
-  const {data,error}=await supabaseAdmin.from('plans').select('*').order('sort_order').order('price_vnd');if(error)return res.status(500).json({error:error.message});res.json({plans:data||[]});
+  const {data,error}=await supabaseAdmin.from('plans').select('*').order('sort_order').order('price_vnd');if(error)return sendDbError(res,error,'Không tải được gói.');res.json({plans:data||[]});
 });
 app.post('/api/admin/plans',requireAdmin,async(req,res)=>{
   const row={code:String(req.body?.code||'').trim(),name:String(req.body?.name||'').trim(),description:String(req.body?.description||'').trim(),price_vnd:Math.max(0,Number(req.body?.priceVnd||0)),direct_credits:Math.max(0,Number(req.body?.direct||0)),file_credits:Math.max(0,Number(req.body?.file||0)),history_credits:Math.max(0,Number(req.body?.history||0)),active:req.body?.active!==false,sort_order:Number(req.body?.sortOrder||100)};
@@ -337,7 +347,7 @@ app.get('/api/admin/orders',requireAdmin,async(_req,res)=>{
   // Admin SDK does not expose a bulk get-by-id call. Resolve only the distinct users present in the latest orders.
   await Promise.all(ids.slice(0,100).map(async id=>{
     const {data:u}=await supabaseAdmin.auth.admin.getUserById(id);
-    if(u?.user)contacts.set(id,u.user.email||u.user.phone||id);
+    if(u?.user)contacts.set(id,u.user.email||id);
   }));
   res.json({orders:orders.map(o=>({...o,user_contact:contacts.get(o.user_id)||o.user_id}))});
 });

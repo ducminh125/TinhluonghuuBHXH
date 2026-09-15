@@ -23,6 +23,11 @@
   </header>
 
   <main class="shell admin-shell">
+    <section id="systemSetupNotice" class="card setup-warning" hidden>
+      <h2>Cần hoàn tất cơ sở dữ liệu</h2>
+      <p id="systemSetupText">Đang kiểm tra cấu hình Supabase…</p>
+      <p><strong>Cách sửa:</strong> mở Supabase → SQL Editor → chạy toàn bộ file <code>supabase/migration-v3.1.sql</code>, sau đó quay lại trang này và tải lại.</p>
+    </section>
     <div id="adminGate" class="card admin-gate">
       <h2>Đang kiểm tra quyền quản trị…</h2>
       <p>Trang này chỉ truy cập được bằng tài khoản có vai trò <b>admin</b>.</p>
@@ -104,7 +109,7 @@
   <div class="modal-backdrop" id="adminAuthModal" hidden>
     <section class="modal-card auth-card">
       <h2>Đăng nhập quản trị</h2>
-      <p class="muted-copy">Dùng tài khoản đã được gán vai trò admin trong Supabase.</p>
+      <p class="muted-copy">Đăng nhập bằng email/Google đã khai báo trong biến <b>ADMIN_EMAILS</b> trên Vercel. Server sẽ tự cấp quyền quản trị cho email này.</p>
       <div id="adminAuthMessage"></div>
       <div class="auth-section">
         <label class="field"><span>Email</span><input id="adminEmail" type="email" autocomplete="email" /></label>

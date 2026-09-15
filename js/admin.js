@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 const money=new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0});
 const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
-let config=null,client=null,session=null;
+let config=null,client=null,session=null,systemStatus=null;
 
 function msg(id,type,text){const el=$(id);if(el)el.innerHTML=text?`<div class="alert ${type}">${esc(text)}</div>`:'';}
 async function api(url,options={}){
@@ -13,7 +13,21 @@ async function api(url,options={}){
 const viDate=v=>v?new Date(v).toLocaleString('vi-VN'):'—';
 const secs=ms=>Number(ms)>0?(Number(ms)/1000).toLocaleString('vi-VN',{maximumFractionDigits:1})+' giây':'—';
 
+async function checkSystemStatus(){
+  try{
+    systemStatus=await fetch('/api/system/status',{cache:'no-store'}).then(r=>r.json());
+    const notice=$('systemSetupNotice'),text=$('systemSetupText');
+    if(systemStatus?.ready){if(notice)notice.hidden=true;return true;}
+    if(notice)notice.hidden=false;
+    if(text)text.textContent=systemStatus?.configured
+      ? `Supabase đang thiếu: ${(systemStatus.missing||[]).join(', ') || 'một số bảng/chức năng'}.`
+      : 'Chưa cấu hình kết nối Supabase trên Vercel.';
+    return false;
+  }catch(_e){return false;}
+}
+
 async function authenticate(){
+  await checkSystemStatus();
   config=await fetch('/api/config').then(r=>r.json());
   if(!config.authEnabled)throw new Error('Chưa cấu hình Supabase. Xem README v3 để bật hệ thống tài khoản.');
   client=window.supabase.createClient(config.supabaseUrl,config.supabasePublishableKey);
@@ -47,7 +61,7 @@ async function loadUsers(){
   const d=await api('/api/admin/users?perPage=100');
   $('usersTable').querySelector('tbody').innerHTML=(d.users||[]).map(u=>{
     const w=u.wallet||{};const p=u.profile||{};const id=esc(u.id);
-    return `<tr data-user="${id}"><td><b>${esc(u.email||u.phone||u.id)}</b><small>${p.role==='admin'?'Quản trị viên':'Người dùng'}</small></td><td>${esc(viDate(u.created_at))}</td><td><span class="admin-pill ${p.status==='suspended'?'warn':'ok'}">${esc(p.status||'active')}</span></td><td>TT <b>${w.direct_credits??0}</b> · HS <b>${w.file_credits??0}</b> · Lưu <b>${w.history_credits??0}</b></td><td><div class="credit-controls"><input class="grant-direct" type="number" min="0" value="0" title="Trực tiếp"><input class="grant-file" type="number" min="0" value="0" title="Hồ sơ"><input class="grant-history" type="number" min="0" value="0" title="Lưu"><button class="button secondary small grant-btn" type="button">Cộng</button></div></td><td>${p.role==='admin'?'—':`<button class="button secondary small status-btn" type="button" data-next="${p.status==='suspended'?'active':'suspended'}">${p.status==='suspended'?'Mở khóa':'Tạm khóa'}</button>`}</td></tr>`;
+    return `<tr data-user="${id}"><td><b>${esc(u.email||u.id)}</b><small>${p.role==='admin'?'Quản trị viên':'Người dùng'}</small></td><td>${esc(viDate(u.created_at))}</td><td><span class="admin-pill ${p.status==='suspended'?'warn':'ok'}">${esc(p.status||'active')}</span></td><td>TT <b>${w.direct_credits??0}</b> · HS <b>${w.file_credits??0}</b> · Lưu <b>${w.history_credits??0}</b></td><td><div class="credit-controls"><input class="grant-direct" type="number" min="0" value="0" title="Trực tiếp"><input class="grant-file" type="number" min="0" value="0" title="Hồ sơ"><input class="grant-history" type="number" min="0" value="0" title="Lưu"><button class="button secondary small grant-btn" type="button">Cộng</button></div></td><td>${p.role==='admin'?'—':`<button class="button secondary small status-btn" type="button" data-next="${p.status==='suspended'?'active':'suspended'}">${p.status==='suspended'?'Mở khóa':'Tạm khóa'}</button>`}</td></tr>`;
   }).join('')||'<tr><td colspan="6">Chưa có tài khoản.</td></tr>';
   document.querySelectorAll('.grant-btn').forEach(b=>b.addEventListener('click',()=>grant(b.closest('tr'))));
   document.querySelectorAll('.status-btn').forEach(b=>b.addEventListener('click',()=>changeStatus(b.closest('tr'),b.dataset.next)));
@@ -73,7 +87,12 @@ async function loadOrders(){
   document.querySelectorAll('.approve-order').forEach(b=>b.addEventListener('click',()=>approveOrder(b.dataset.order)));
 }
 async function approveOrder(id){try{await api(`/api/admin/orders/${id}/approve`,{method:'POST',body:'{}'});msg('orderMessage','success','Đã xác nhận thanh toán và cộng lượt vào tài khoản.');await Promise.all([loadOrders(),loadMetrics(),loadUsers()]);}catch(e){msg('orderMessage','error',e.message);}}
-async function refreshAll(){await Promise.all([loadMetrics(),loadUsers(),loadPlans(),loadOrders()]);}
+async function refreshAll(){
+  const tasks=[loadMetrics(),loadUsers(),loadPlans(),loadOrders()];
+  const results=await Promise.allSettled(tasks);
+  const failed=results.find(r=>r.status==='rejected');
+  if(failed)msg('userMessage','error',failed.reason?.message||'Một phần trang quản trị chưa tải được. Hãy kiểm tra database.');
+}
 
 $('adminLoginBtn').addEventListener('click',emailLogin);$('adminGoogleBtn').addEventListener('click',googleLogin);$('adminLogoutBtn').addEventListener('click',async()=>{if(client)await client.auth.signOut();location.href='/';});$('refreshUsersBtn').addEventListener('click',loadUsers);$('planForm').addEventListener('submit',createPlan);
 authenticate().catch(e=>showLogin(e.message));

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Xác nhận email thành công · Tính lương hưu</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="auth-success-shell">
+    <section class="card auth-success-card" aria-live="polite">
+      <div class="auth-success-icon" id="confirmIcon">✓</div>
+      <p class="eyebrow">TÀI KHOẢN</p>
+      <h1 id="confirmTitle">Đang hoàn tất xác nhận…</h1>
+      <p id="confirmMessage">Hệ thống đang kiểm tra phiên đăng nhập sau khi bạn xác nhận email.</p>
+      <div class="auth-success-actions">
+        <a class="button primary" href="/" id="homeButton">Vào công cụ tính lương hưu</a>
+        <a class="button secondary" href="/" id="loginButton">Về trang đăng nhập</a>
+      </div>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="/js/auth-confirmed.js"></script>
+</body>
+</html>

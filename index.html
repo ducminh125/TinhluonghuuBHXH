@@ -344,16 +344,7 @@
       </div>
       <div class="auth-divider"><span>hoặc</span></div>
       <button class="button google-button" id="googleLoginBtn" type="button">Tiếp tục bằng Google</button>
-      <div class="auth-divider"><span>hoặc số điện thoại</span></div>
-      <div class="auth-section">
-        <label class="field"><span>Số điện thoại</span><input id="authPhone" type="tel" autocomplete="tel" placeholder="+8490..." /></label>
-        <button class="button secondary" id="sendOtpBtn" type="button">Gửi mã OTP</button>
-        <div id="otpRow" class="otp-row" hidden>
-          <label class="field"><span>Mã OTP</span><input id="authOtp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" /></label>
-          <button class="button primary" id="verifyOtpBtn" type="button">Xác nhận OTP</button>
-        </div>
-      </div>
-      <small>Việc đăng nhập Google và gửi OTP cần được bật trong cấu hình nhà cung cấp xác thực. Khi đăng ký/tiếp tục, bạn xác nhận đã đọc <a href="/terms" target="_blank" rel="noopener">Điều khoản</a> và <a href="/privacy" target="_blank" rel="noopener">Chính sách bảo mật</a>.</small>
+      <small>Đăng nhập Google cần được bật trong cấu hình nhà cung cấp xác thực. Khi đăng ký/tiếp tục, bạn xác nhận đã đọc <a href="/terms" target="_blank" rel="noopener">Điều khoản</a> và <a href="/privacy" target="_blank" rel="noopener">Chính sách bảo mật</a>.</small>
     </section>
   </div>
 
@@ -371,6 +362,8 @@
     <section class="modal-card wide-modal" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
       <button class="modal-close" id="accountClose" type="button" aria-label="Đóng">×</button>
       <div class="modal-heading-row"><div><h2 id="accountTitle">Tài khoản của tôi</h2><p>Theo dõi lượt sử dụng, lịch sử và đơn hàng.</p></div><button class="button primary" id="accountBuyBtn" type="button">Mua thêm lượt</button></div>
+      <h3>Lượt sử dụng còn lại</h3>
+      <div id="walletSummary" class="wallet-summary"><p>Đang tải hạn mức…</p></div>
       <div class="account-columns">
         <div><h3>Lịch sử đã lưu</h3><div id="historyList" class="account-list"></div></div>
         <div><h3>Đơn hàng gần đây</h3><div id="orderList" class="account-list"></div></div>
