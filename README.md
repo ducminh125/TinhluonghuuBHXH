@@ -1,4 +1,4 @@
-# VN Social Insurance Benefits Calculator v3.13
+# VN Social Insurance Benefits Calculator v3.14
 
 Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 - lương hưu;
@@ -11,6 +11,14 @@ Hệ thống dùng Supabase cho tài khoản/database, payOS cho VietQR + webhoo
 > Kết quả là tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH, hồ sơ thực tế và văn bản có hiệu lực tại thời điểm giải quyết.
 
 
+
+
+## Mới trong v3.14 — Privacy & Terms hoàn chỉnh
+
+- Hoàn thiện `privacy.html` và `terms.html` để dùng production; bỏ toàn bộ placeholder/bản mẫu.
+- Công khai Đơn vị cung cấp: **Đức Minh**; liên hệ **Đức Minh — 0383355188**.
+- Bổ sung nội dung về dữ liệu cá nhân, file/ảnh & AI, nhà cung cấp bên thứ ba, lưu giữ dữ liệu, quyền người dùng, thanh toán, sự cố giao dịch, giới hạn trách nhiệm và giải quyết tranh chấp.
+- Không thay đổi database, payOS, quota hoặc công thức tính.
 
 ## Mới trong v3.13 — sửa đọc ảnh, mặc định BHXH một lần, Google/Facebook OAuth
 

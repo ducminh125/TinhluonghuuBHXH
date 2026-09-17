@@ -1,1 +1,158 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chính sách bảo mật · Tính chế độ BHXH</title><link rel="stylesheet" href="/styles.css"></head><body><main class="shell policy-page"><a href="/">← Về công cụ</a><section class="card"><h1>Chính sách bảo mật — bản mẫu</h1><p class="lead">Cần được chủ dịch vụ rà soát pháp lý và điền thông tin pháp nhân/liên hệ trước khi phát hành chính thức.</p><h2>Dữ liệu xử lý</h2><p>Dịch vụ có thể xử lý thông tin tài khoản, ngày sinh, giới tính, quá trình đóng BHXH, mức lương/phụ cấp và dữ liệu cần thiết để ước tính lương hưu, BHXH một lần, trợ cấp thất nghiệp và chế độ thai sản.</p><h2>File hồ sơ</h2><p>Thiết kế mặc định xử lý file trong phiên yêu cầu và không lưu file gốc vào cơ sở dữ liệu. Metadata kỹ thuật có thể được lưu để theo dõi lỗi, hiệu năng và hạn mức. Kết quả chỉ được lưu vào lịch sử khi người dùng chủ động yêu cầu.</p><h2>Bên cung cấp hạ tầng</h2><p>Hệ thống có thể sử dụng dịch vụ xác thực/database, hosting và API xử lý AI. Chủ dịch vụ cần công bố cụ thể nhà cung cấp, mục đích, vị trí xử lý dữ liệu và thời hạn lưu giữ theo cấu hình production thực tế.</p><h2>Quyền của người dùng</h2><p>Người dùng có thể xóa từng lịch sử đã lưu. Trước khi thương mại hóa, cần bổ sung quy trình yêu cầu truy cập, sửa, xóa hoặc hạn chế xử lý dữ liệu theo pháp luật áp dụng.</p><h2>An toàn</h2><p>API key và secret key chỉ được lưu phía server; không ghi file hồ sơ hoặc token vào log ứng dụng.</p><p><b>Liên hệ:</b> [điền email/đơn vị vận hành].</p></section></main></body></html>
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Chính sách bảo mật và bảo vệ dữ liệu cá nhân của công cụ Tính chế độ BHXH.">
+  <title>Chính sách bảo mật · Tính chế độ BHXH</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell policy-page">
+    <div class="policy-topbar">
+      <a class="policy-back" href="/">← Về công cụ</a>
+      <nav class="policy-nav" aria-label="Điều hướng pháp lý">
+        <a class="active" href="/privacy">Chính sách bảo mật</a>
+        <a href="/terms">Điều khoản sử dụng</a>
+      </nav>
+    </div>
+
+    <section class="card policy-card">
+      <header class="policy-hero">
+        <span class="policy-kicker">BẢO VỆ DỮ LIỆU CÁ NHÂN</span>
+        <h1>Chính sách bảo mật</h1>
+        <p class="lead">Chính sách này giải thích loại dữ liệu được xử lý khi bạn sử dụng công cụ tính chế độ BHXH, mục đích xử lý, cách dữ liệu được bảo vệ và các quyền của bạn.</p>
+        <div class="policy-provider-grid">
+          <div><span>Đơn vị cung cấp</span><strong>Đức Minh</strong></div>
+          <div><span>Người liên hệ</span><strong>Đức Minh</strong></div>
+          <div><span>Điện thoại</span><strong><a href="tel:0383355188">0383355188</a></strong></div>
+          <div><span>Website</span><strong>tinhluonghuu-bhxh.vercel.app</strong></div>
+        </div>
+        <p class="policy-updated">Cập nhật lần cuối: 17/09/2026</p>
+      </header>
+
+      <div class="policy-notice">
+        <strong>Tóm tắt dễ hiểu</strong>
+        <p>Dữ liệu của bạn chỉ được xử lý để cung cấp chức năng tính toán, đọc hồ sơ, đăng nhập, lưu lịch sử, thanh toán, hỗ trợ và bảo đảm an toàn hệ thống. Dịch vụ không chủ động bán dữ liệu cá nhân cho bên quảng cáo.</p>
+      </div>
+
+      <nav class="policy-toc" aria-label="Mục lục chính sách bảo mật">
+        <a href="#pham-vi">1. Phạm vi</a><a href="#du-lieu">2. Dữ liệu xử lý</a><a href="#muc-dich">3. Mục đích</a><a href="#file-ai">4. File và AI</a><a href="#chia-se">5. Bên thứ ba</a><a href="#luu-giu">6. Lưu giữ</a><a href="#bao-mat">7. Bảo mật</a><a href="#quyen">8. Quyền của bạn</a><a href="#cookie">9. Phiên đăng nhập</a><a href="#tre-em">10. Dữ liệu người khác</a><a href="#thay-doi">11. Thay đổi</a><a href="#lien-he">12. Liên hệ</a>
+      </nav>
+
+      <section id="pham-vi" class="policy-section">
+        <h2>1. Phạm vi áp dụng</h2>
+        <p>Chính sách này áp dụng đối với website <strong>tinhluonghuu-bhxh.vercel.app</strong> và các chức năng liên quan do Đức Minh cung cấp, bao gồm: tính lương hưu, BHXH một lần, trợ cấp thất nghiệp, chế độ thai sản, đọc dữ liệu từ file/ảnh, tài khoản người dùng, lịch sử tính toán và thanh toán gói sử dụng.</p>
+        <p>Việc bảo vệ dữ liệu được thực hiện phù hợp với pháp luật Việt Nam hiện hành về dữ liệu và bảo vệ dữ liệu cá nhân, trong đó có Luật Bảo vệ dữ liệu cá nhân số 91/2025/QH15, Luật Dữ liệu số 60/2024/QH15 và các văn bản hướng dẫn có liên quan.</p>
+      </section>
+
+      <section id="du-lieu" class="policy-section">
+        <h2>2. Những loại dữ liệu có thể được xử lý</h2>
+        <ul>
+          <li><strong>Dữ liệu tài khoản:</strong> email, tên hiển thị, ảnh đại diện hoặc thông tin cơ bản được nhà cung cấp đăng nhập xã hội trả về khi bạn chọn đăng nhập bằng Google/Facebook và nhà cung cấp đó cho phép chia sẻ.</li>
+          <li><strong>Dữ liệu phục vụ tính chế độ:</strong> ngày sinh, giới tính, thời gian tham gia BHXH/BHTN, tiền lương, hệ số, phụ cấp, thời điểm nghỉ việc/nghỉ hưu, thông tin thai sản và các dữ kiện cần thiết cho chế độ mà bạn chủ động lựa chọn.</li>
+          <li><strong>Hồ sơ tải lên:</strong> ảnh, PDF, Word, Excel hoặc dữ liệu khác mà bạn chủ động gửi để hệ thống nhận diện quá trình đóng bảo hiểm.</li>
+          <li><strong>Lịch sử tính toán:</strong> dữ liệu đầu vào và kết quả chỉ được lưu vào lịch sử tài khoản khi bạn sử dụng chức năng lưu kết quả.</li>
+          <li><strong>Dữ liệu thanh toán:</strong> mã đơn hàng, gói đã chọn, số tiền, trạng thái giao dịch, mã/nội dung chuyển khoản và thông tin giao dịch cần thiết do nhà cung cấp thanh toán trả về để đối soát.</li>
+          <li><strong>Dữ liệu kỹ thuật:</strong> thời điểm truy cập, trạng thái yêu cầu, loại trình duyệt/thiết bị, địa chỉ mạng hoặc thông tin kỹ thuật tương tự có thể xuất hiện trong log hạ tầng nhằm bảo mật, xử lý lỗi và phòng chống lạm dụng.</li>
+        </ul>
+        <p>Dịch vụ không yêu cầu bạn cung cấp mật khẩu ngân hàng, mã PIN hoặc mã OTP ngân hàng. Không gửi các thông tin này qua biểu mẫu, file tải lên hoặc kênh hỗ trợ.</p>
+      </section>
+
+      <section id="muc-dich" class="policy-section">
+        <h2>3. Mục đích xử lý dữ liệu</h2>
+        <p>Dữ liệu được xử lý trong phạm vi cần thiết để:</p>
+        <ul>
+          <li>xác thực tài khoản và duy trì phiên đăng nhập;</li>
+          <li>tính toán quyền lợi BHXH/BHTN/thai sản dựa trên dữ liệu bạn cung cấp;</li>
+          <li>nhận diện và cấu trúc dữ liệu từ hồ sơ file/ảnh;</li>
+          <li>lưu, hiển thị và cho phép bạn tra cứu/xóa lịch sử khi bạn yêu cầu;</li>
+          <li>tạo đơn hàng, xác nhận thanh toán, cộng lượt sử dụng và xử lý giao dịch phát sinh;</li>
+          <li>phòng chống gian lận, bảo vệ tài khoản, giới hạn lạm dụng và bảo đảm an toàn hệ thống;</li>
+          <li>chẩn đoán lỗi, cải thiện độ ổn định, hiệu năng và chất lượng dịch vụ;</li>
+          <li>hỗ trợ người dùng và thực hiện nghĩa vụ theo yêu cầu hợp pháp của cơ quan có thẩm quyền.</li>
+        </ul>
+      </section>
+
+      <section id="file-ai" class="policy-section">
+        <h2>4. Xử lý file, ảnh và công nghệ AI</h2>
+        <p>Hệ thống được thiết kế để xử lý file tải lên trong bộ nhớ của phiên yêu cầu và <strong>không chủ động lưu file gốc vào cơ sở dữ liệu ứng dụng</strong>. Hệ thống có thể lưu metadata kỹ thuật của lần xử lý như trạng thái, thời gian xử lý, model/parser đã sử dụng và số lượng nguồn để theo dõi hiệu năng và xử lý lỗi.</p>
+        <p>Với hồ sơ cần nhận diện bằng AI, nội dung file/ảnh có thể được truyền tới nhà cung cấp API/model AI để trích xuất dữ liệu. Dữ liệu sau khi trích xuất cần được bạn kiểm tra lại trước khi sử dụng để tính chế độ. Không nên tải lên thông tin không cần thiết cho mục đích tính toán.</p>
+        <p>Nếu hồ sơ chứa dữ liệu của người khác, bạn chịu trách nhiệm bảo đảm mình có quyền hợp pháp để cung cấp và yêu cầu xử lý dữ liệu đó.</p>
+      </section>
+
+      <section id="chia-se" class="policy-section">
+        <h2>5. Nhà cung cấp dịch vụ và việc chia sẻ dữ liệu</h2>
+        <p>Để website hoạt động, một phần dữ liệu có thể được xử lý bởi các nhà cung cấp hạ tầng hoặc dịch vụ sau, tùy chức năng bạn sử dụng:</p>
+        <div class="policy-table-wrap">
+          <table class="policy-table">
+            <thead><tr><th>Nhóm dịch vụ</th><th>Mục đích</th><th>Dữ liệu liên quan</th></tr></thead>
+            <tbody>
+              <tr><td>Supabase</td><td>Xác thực, cơ sở dữ liệu và quản lý tài khoản</td><td>Tài khoản, ví lượt, lịch sử, đơn hàng và dữ liệu ứng dụng cần thiết</td></tr>
+              <tr><td>Vercel</td><td>Hosting và vận hành website/API</td><td>Yêu cầu mạng, log kỹ thuật và dữ liệu đi qua hạ tầng khi xử lý</td></tr>
+              <tr><td>payOS/VietQR và đối tác ngân hàng</td><td>Tạo QR, xác nhận và đối soát thanh toán</td><td>Mã đơn, số tiền, nội dung chuyển khoản, trạng thái giao dịch</td></tr>
+              <tr><td>ShopAIKey/model AI được cấu hình</td><td>Nhận diện dữ liệu trong ảnh/PDF khi cần</td><td>Nội dung hồ sơ được gửi cho tác vụ nhận diện</td></tr>
+              <tr><td>Google/Facebook</td><td>Đăng nhập xã hội nếu bạn lựa chọn</td><td>Thông tin tài khoản mà nhà cung cấp OAuth cho phép chia sẻ</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Một số nhà cung cấp có thể sử dụng hạ tầng đặt ngoài Việt Nam. Việc truyền và xử lý dữ liệu qua hạ tầng nước ngoài, nếu phát sinh, được thực hiện theo cấu hình dịch vụ thực tế và các yêu cầu pháp luật áp dụng. Dịch vụ không chủ động bán dữ liệu cá nhân của người dùng cho bên quảng cáo.</p>
+      </section>
+
+      <section id="luu-giu" class="policy-section">
+        <h2>6. Thời gian lưu giữ và xóa dữ liệu</h2>
+        <ul>
+          <li><strong>File gốc tải lên:</strong> ứng dụng không được thiết kế để lưu lâu dài file gốc trong cơ sở dữ liệu; file được xử lý trong phiên yêu cầu. Nhà cung cấp hạ tầng/API bên thứ ba có thể áp dụng cơ chế lưu tạm hoặc log theo chính sách của họ.</li>
+          <li><strong>Lịch sử tính toán:</strong> được lưu khi bạn chủ động chọn lưu và tồn tại cho tới khi bạn xóa hoặc gửi yêu cầu xử lý tài khoản, trừ trường hợp cần lưu theo yêu cầu pháp luật.</li>
+          <li><strong>Tài khoản:</strong> được duy trì trong thời gian tài khoản còn hoạt động hoặc cho tới khi yêu cầu xóa được xử lý.</li>
+          <li><strong>Đơn hàng và dữ liệu giao dịch:</strong> có thể được lưu trong thời gian cần thiết để đối soát, hỗ trợ khách hàng, phòng chống gian lận và thực hiện nghĩa vụ liên quan đến giao dịch.</li>
+          <li><strong>Log kỹ thuật:</strong> được lưu trong phạm vi cần thiết cho an toàn, vận hành và xử lý sự cố, phụ thuộc cấu hình của hạ tầng tại từng thời điểm.</li>
+        </ul>
+      </section>
+
+      <section id="bao-mat" class="policy-section">
+        <h2>7. Biện pháp bảo vệ dữ liệu</h2>
+        <p>Dịch vụ áp dụng các biện pháp phù hợp với quy mô hệ thống như kết nối HTTPS, lưu secret/API key ở phía máy chủ, kiểm soát quyền truy cập, chính sách bảo mật cơ sở dữ liệu, xác thực người dùng và hạn chế truy cập dữ liệu theo tài khoản.</p>
+        <p>Không hệ thống trực tuyến nào có thể bảo đảm an toàn tuyệt đối. Bạn nên sử dụng mật khẩu mạnh, bảo vệ tài khoản email/Google/Facebook của mình và không chia sẻ mã xác thực cho người khác.</p>
+      </section>
+
+      <section id="quyen" class="policy-section">
+        <h2>8. Quyền và lựa chọn của người dùng</h2>
+        <p>Trong phạm vi pháp luật cho phép và tùy loại dữ liệu, bạn có thể yêu cầu được biết, truy cập, xem lại, chỉnh sửa, xóa, hạn chế xử lý, rút lại sự đồng ý hoặc thực hiện các quyền khác của chủ thể dữ liệu theo pháp luật hiện hành.</p>
+        <p>Bạn có thể tự xóa từng lịch sử đã lưu trong tài khoản. Đối với yêu cầu liên quan đến tài khoản hoặc dữ liệu khác, hãy liên hệ Đức Minh theo số <a href="tel:0383355188">0383355188</a>. Việc rút lại sự đồng ý hoặc xóa một số dữ liệu có thể khiến một số chức năng không còn hoạt động. Việc rút lại sự đồng ý không làm mất hiệu lực của hoạt động xử lý đã được thực hiện hợp pháp trước thời điểm rút lại.</p>
+        <p>Một số dữ liệu giao dịch hoặc log có thể cần tiếp tục được lưu nếu pháp luật yêu cầu hoặc cần thiết để giải quyết tranh chấp, bảo vệ quyền và lợi ích hợp pháp của các bên.</p>
+      </section>
+
+      <section id="cookie" class="policy-section">
+        <h2>9. Cookie, local storage và phiên đăng nhập</h2>
+        <p>Website có thể sử dụng cookie hoặc bộ nhớ trình duyệt cần thiết để duy trì phiên đăng nhập, trạng thái giao diện và bảo mật tài khoản. Khi bạn đăng nhập bằng Google/Facebook, nhà cung cấp tương ứng có thể sử dụng cookie theo chính sách riêng của họ.</p>
+        <p>Website hiện không được thiết kế để sử dụng dữ liệu cá nhân nhằm phân phối quảng cáo theo hành vi. Nếu sau này bổ sung công cụ phân tích hoặc quảng cáo làm thay đổi cách xử lý dữ liệu, chính sách này sẽ được cập nhật trước hoặc tại thời điểm áp dụng.</p>
+      </section>
+
+      <section id="tre-em" class="policy-section">
+        <h2>10. Dữ liệu của người khác và người chưa thành niên</h2>
+        <p>Chỉ cung cấp dữ liệu của người khác khi bạn có quyền, được ủy quyền hoặc có căn cứ hợp pháp để thực hiện. Nếu sử dụng dịch vụ thay mặt người chưa thành niên hoặc người cần người đại diện, người đại diện có trách nhiệm bảo đảm việc cung cấp và xử lý dữ liệu phù hợp với quy định pháp luật.</p>
+      </section>
+
+      <section id="thay-doi" class="policy-section">
+        <h2>11. Thay đổi chính sách</h2>
+        <p>Chính sách có thể được cập nhật khi tính năng, nhà cung cấp hạ tầng hoặc quy định pháp luật thay đổi. Phiên bản mới sẽ được công bố tại trang này và ghi rõ ngày cập nhật. Với thay đổi quan trọng ảnh hưởng đáng kể đến quyền riêng tư, dịch vụ có thể hiển thị thông báo phù hợp trên website.</p>
+      </section>
+
+      <section id="lien-he" class="policy-section policy-contact-section">
+        <h2>12. Liên hệ về quyền riêng tư và dữ liệu</h2>
+        <div class="policy-contact-card">
+          <div><span>Đơn vị cung cấp</span><strong>Đức Minh</strong></div>
+          <div><span>Người liên hệ</span><strong>Đức Minh</strong></div>
+          <div><span>Điện thoại</span><strong><a href="tel:0383355188">0383355188</a></strong></div>
+        </div>
+        <p>Khi liên hệ về tài khoản hoặc dữ liệu cá nhân, bạn nên cung cấp đủ thông tin để xác định tài khoản và nội dung yêu cầu nhưng <strong>không gửi mật khẩu, mã OTP hoặc thông tin đăng nhập ngân hàng</strong>.</p>
+      </section>
+
+      <footer class="policy-footer-note">
+        <p>Chính sách bảo mật này là một phần của <a href="/terms">Điều khoản sử dụng</a> của dịch vụ.</p>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>

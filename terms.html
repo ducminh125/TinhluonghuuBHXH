@@ -1,1 +1,166 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Điều khoản sử dụng · Tính chế độ BHXH</title><link rel="stylesheet" href="/styles.css"></head><body><main class="shell policy-page"><a href="/">← Về công cụ</a><section class="card"><h1>Điều khoản sử dụng — bản mẫu</h1><p class="lead">Cần được chủ dịch vụ rà soát pháp lý và điền thông tin pháp nhân trước khi phát hành chính thức.</p><h2>Phạm vi dịch vụ</h2><p>Công cụ cung cấp kết quả ước tính/tham khảo trên cơ sở dữ liệu người dùng cung cấp và bộ quy tắc đã tích hợp. Kết quả không thay thế quyết định của cơ quan BHXH có thẩm quyền.</p><h2>Lượt sử dụng</h2><p>Mỗi tài khoản có các ví lượt riêng cho nhập thủ công, nhập bằng file/ảnh tự động và lưu lịch sử. Phép tính hợp lệ từ dữ liệu thủ công trừ lượt nhập thủ công; file/ảnh chỉ trừ lượt khi đọc được dữ liệu hợp lệ; mỗi lần chủ động lưu kết quả trừ lượt lưu lịch sử.</p><h2>Thanh toán</h2><p>Gói dịch vụ, giá, số lượt và thời hạn sử dụng (nếu có) phải được hiển thị trước khi khách thanh toán. Thanh toán qua payOS/VietQR được xác nhận tự động bằng webhook; quản trị viên có thể hủy đơn đang chờ hoặc xử lý ngoại lệ theo trạng thái thực tế của nhà cung cấp thanh toán.</p><h2>Trách nhiệm dữ liệu</h2><p>Người dùng chịu trách nhiệm kiểm tra dữ liệu nhận diện từ hồ sơ, đặc biệt các giai đoạn được hệ thống đánh dấu chưa rõ hoặc xung đột.</p><h2>Thay đổi pháp luật</h2><p>Công thức có thể cần cập nhật khi văn bản pháp luật, mức lương cơ sở, mức tham chiếu hoặc hệ số điều chỉnh thay đổi.</p><p><b>Đơn vị cung cấp:</b> [điền pháp nhân/địa chỉ/MST/liên hệ].</p></section></main></body></html>
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Điều khoản sử dụng công cụ Tính chế độ BHXH.">
+  <title>Điều khoản sử dụng · Tính chế độ BHXH</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell policy-page">
+    <div class="policy-topbar">
+      <a class="policy-back" href="/">← Về công cụ</a>
+      <nav class="policy-nav" aria-label="Điều hướng pháp lý">
+        <a href="/privacy">Chính sách bảo mật</a>
+        <a class="active" href="/terms">Điều khoản sử dụng</a>
+      </nav>
+    </div>
+
+    <section class="card policy-card">
+      <header class="policy-hero">
+        <span class="policy-kicker">ĐIỀU KIỆN SỬ DỤNG DỊCH VỤ</span>
+        <h1>Điều khoản sử dụng</h1>
+        <p class="lead">Điều khoản này quy định quyền, trách nhiệm và nguyên tắc khi sử dụng công cụ tính chế độ BHXH, tài khoản, lượt sử dụng, lưu lịch sử và thanh toán trên website.</p>
+        <div class="policy-provider-grid">
+          <div><span>Đơn vị cung cấp</span><strong>Đức Minh</strong></div>
+          <div><span>Người liên hệ</span><strong>Đức Minh</strong></div>
+          <div><span>Điện thoại</span><strong><a href="tel:0383355188">0383355188</a></strong></div>
+          <div><span>Website</span><strong>tinhluonghuu-bhxh.vercel.app</strong></div>
+        </div>
+        <p class="policy-updated">Cập nhật lần cuối: 17/09/2026</p>
+      </header>
+
+      <div class="policy-notice policy-notice-warning">
+        <strong>Lưu ý quan trọng</strong>
+        <p>Kết quả do website cung cấp là kết quả tính toán tham khảo dựa trên dữ liệu người dùng nhập và quy tắc được tích hợp tại thời điểm tính. Kết quả không thay thế hồ sơ, quyết định hoặc kết luận chính thức của cơ quan BHXH/cơ quan nhà nước có thẩm quyền.</p>
+      </div>
+
+      <nav class="policy-toc" aria-label="Mục lục điều khoản sử dụng">
+        <a href="#chap-nhan">1. Chấp nhận</a><a href="#dich-vu">2. Phạm vi dịch vụ</a><a href="#tai-khoan">3. Tài khoản</a><a href="#du-lieu">4. Dữ liệu người dùng</a><a href="#luot">5. Lượt sử dụng</a><a href="#thanh-toan">6. Thanh toán</a><a href="#hoan-tien">7. Sự cố và hoàn tiền</a><a href="#ket-qua">8. Kết quả tính</a><a href="#cam-ket">9. Hành vi bị cấm</a><a href="#ben-thu-ba">10. Bên thứ ba</a><a href="#so-huu">11. Sở hữu trí tuệ</a><a href="#gioi-han">12. Giới hạn trách nhiệm</a><a href="#tam-ngung">13. Tạm ngừng</a><a href="#thay-doi">14. Thay đổi</a><a href="#tranh-chap">15. Tranh chấp</a><a href="#lien-he">16. Liên hệ</a>
+      </nav>
+
+      <section id="chap-nhan" class="policy-section">
+        <h2>1. Chấp nhận điều khoản</h2>
+        <p>Khi truy cập, đăng ký tài khoản, sử dụng chức năng tính toán, tải hồ sơ, lưu lịch sử hoặc thanh toán trên website, bạn xác nhận đã đọc và đồng ý tuân thủ Điều khoản sử dụng này cùng <a href="/privacy">Chính sách bảo mật</a>.</p>
+        <p>Nếu không đồng ý với một nội dung của Điều khoản, bạn nên ngừng sử dụng phần dịch vụ liên quan.</p>
+      </section>
+
+      <section id="dich-vu" class="policy-section">
+        <h2>2. Phạm vi dịch vụ</h2>
+        <p>Website cung cấp công cụ hỗ trợ ước tính và tham khảo đối với các chế độ gồm lương hưu, BHXH một lần, trợ cấp thất nghiệp và chế độ thai sản. Dịch vụ có thể hỗ trợ nhập thủ công, nhận diện dữ liệu từ file/ảnh, lưu lịch sử, quản lý lượt sử dụng và thanh toán gói lượt.</p>
+        <p>Dịch vụ không phải là cơ quan BHXH, không đại diện cơ quan nhà nước và không thực hiện thủ tục giải quyết chế độ thay cho người dùng.</p>
+      </section>
+
+      <section id="tai-khoan" class="policy-section">
+        <h2>3. Đăng ký, đăng nhập và bảo vệ tài khoản</h2>
+        <ul>
+          <li>Bạn có thể đăng nhập bằng email/mật khẩu hoặc nhà cung cấp đăng nhập xã hội được website hỗ trợ tại từng thời điểm.</li>
+          <li>Bạn chịu trách nhiệm bảo vệ thông tin đăng nhập và các phương thức xác thực gắn với tài khoản.</li>
+          <li>Không sử dụng tài khoản của người khác khi chưa được phép và không chia sẻ tài khoản để né hạn mức hoặc cơ chế tính lượt.</li>
+          <li>Nếu nghi ngờ tài khoản bị truy cập trái phép, hãy đổi thông tin bảo mật liên quan và liên hệ Đức Minh theo số <a href="tel:0383355188">0383355188</a>.</li>
+        </ul>
+      </section>
+
+      <section id="du-lieu" class="policy-section">
+        <h2>4. Dữ liệu và hồ sơ do người dùng cung cấp</h2>
+        <p>Bạn chịu trách nhiệm về tính chính xác, đầy đủ và quyền sử dụng đối với dữ liệu nhập vào hoặc hồ sơ tải lên. Với dữ liệu được hệ thống tự nhận diện từ file/ảnh, bạn cần kiểm tra lại trước khi sử dụng làm căn cứ tính.</p>
+        <p>Không tải lên nội dung trái pháp luật, mã độc, file nhằm phá hoại hệ thống hoặc dữ liệu cá nhân của người khác khi bạn không có quyền xử lý. Không gửi mật khẩu ngân hàng, mã PIN hoặc OTP trong file/hình ảnh.</p>
+      </section>
+
+      <section id="luot" class="policy-section">
+        <h2>5. Lượt sử dụng</h2>
+        <p>Mỗi tài khoản có thể có ba loại lượt:</p>
+        <ul>
+          <li><strong>Lượt nhập thủ công:</strong> sử dụng khi thực hiện phép tính hợp lệ từ dữ liệu nhập trực tiếp.</li>
+          <li><strong>Lượt nhập bằng file/ảnh tự động:</strong> sử dụng khi hệ thống đọc và trích xuất được dữ liệu hợp lệ từ hồ sơ.</li>
+          <li><strong>Lượt lưu lịch sử:</strong> sử dụng khi người dùng chủ động lưu một kết quả vào lịch sử tài khoản.</li>
+        </ul>
+        <p>Trường hợp dữ liệu không đủ điều kiện hưởng hoặc yêu cầu không tạo được kết quả hợp lệ theo cơ chế kiểm tra của hệ thống thì lượt tính thủ công không bị trừ. Với việc đọc file/ảnh, lượt chỉ bị trừ sau khi hệ thống nhận diện được dữ liệu hợp lệ; nếu lỗi phát sinh sau khi đã trừ do sự cố kỹ thuật thuộc luồng xử lý, hệ thống có thể thực hiện hoàn lượt theo cơ chế đã tích hợp.</p>
+        <p>Lượt miễn phí, số lượt trong từng gói, giá bán hoặc chính sách sử dụng có thể được điều chỉnh cho các lần mua/đăng ký sau. Quyền lợi của đơn hàng đã thanh toán được xác định theo thông tin gói được ghi nhận tại thời điểm tạo giao dịch.</p>
+      </section>
+
+      <section id="thanh-toan" class="policy-section">
+        <h2>6. Đơn hàng và thanh toán</h2>
+        <p>Trước khi thanh toán, website hiển thị tên gói, số lượt, số tiền và thông tin chuyển khoản. Thanh toán có thể được thực hiện qua payOS/VietQR hoặc phương thức khác được website công bố tại thời điểm giao dịch.</p>
+        <p>Đơn hàng chỉ được coi là đã thanh toán khi hệ thống nhận được trạng thái giao dịch hợp lệ từ nhà cung cấp thanh toán hoặc được quản trị viên đối soát theo giao dịch thực tế. Việc người dùng tự gửi ảnh chụp chuyển khoản không tự động tạo quyền nhận lượt nếu chưa có căn cứ đối soát.</p>
+        <p>Sau khi giao dịch được xác nhận, số lượt của gói sẽ được cộng vào tài khoản tương ứng. Hệ thống sử dụng cơ chế chống xác nhận lặp để hạn chế việc một giao dịch bị cộng lượt nhiều lần.</p>
+      </section>
+
+      <section id="hoan-tien" class="policy-section">
+        <h2>7. Sự cố giao dịch, thanh toán trùng và yêu cầu hoàn tiền</h2>
+        <p>Nếu tiền đã được ngân hàng ghi nhận nhưng lượt chưa được cộng, hoặc bạn chuyển khoản trùng cho cùng một nhu cầu mua, hãy liên hệ Đức Minh theo số <a href="tel:0383355188">0383355188</a> và cung cấp mã đơn/mã giao dịch cần thiết để đối soát.</p>
+        <p>Yêu cầu hoàn tiền hoặc điều chỉnh được xem xét dựa trên trạng thái giao dịch thực tế, số lượt đã được cấp/đã sử dụng, nguyên nhân kỹ thuật và quy định pháp luật áp dụng. Trường hợp có nghĩa vụ hoàn tiền theo pháp luật hoặc xác định có lỗi thu tiền/cộng lượt không đúng, đơn vị cung cấp sẽ phối hợp xử lý sau khi xác minh.</p>
+      </section>
+
+      <section id="ket-qua" class="policy-section">
+        <h2>8. Tính chất và giới hạn của kết quả</h2>
+        <p>Kết quả phụ thuộc trực tiếp vào dữ liệu bạn cung cấp, cách hệ thống diễn giải hồ sơ và bộ quy tắc pháp lý được cập nhật tại thời điểm tính. Sai dữ liệu đầu vào, hồ sơ không đầy đủ hoặc thay đổi pháp luật có thể làm kết quả khác với số tiền/cách giải quyết chính thức.</p>
+        <p>Các mức lương, mức tham chiếu, lương tối thiểu vùng, hệ số điều chỉnh, điều kiện hưởng và văn bản pháp luật có thể thay đổi theo thời gian. Người dùng nên kiểm tra lại thông tin với cơ quan BHXH hoặc nguồn pháp lý chính thức trước khi đưa ra quyết định quan trọng.</p>
+        <p>Website không cung cấp tư vấn pháp lý cá nhân hóa, tư vấn đầu tư, tư vấn tài chính hay cam kết rằng người dùng chắc chắn được cơ quan có thẩm quyền chấp thuận chế độ.</p>
+      </section>
+
+      <section id="cam-ket" class="policy-section">
+        <h2>9. Hành vi không được phép</h2>
+        <p>Khi sử dụng dịch vụ, bạn không được:</p>
+        <ul>
+          <li>tấn công, quét lỗ hổng, gây quá tải hoặc cố ý làm gián đoạn website;</li>
+          <li>tìm cách vượt qua cơ chế đăng nhập, hạn mức, tính lượt hoặc thanh toán;</li>
+          <li>đưa mã độc, nội dung gây hại hoặc dữ liệu trái pháp luật vào hệ thống;</li>
+          <li>sử dụng dịch vụ để xâm phạm quyền riêng tư, dữ liệu cá nhân hoặc quyền hợp pháp của người khác;</li>
+          <li>tự động khai thác dữ liệu, sao chép hàng loạt hoặc sử dụng dịch vụ theo cách gây ảnh hưởng bất hợp lý đến hạ tầng;</li>
+          <li>giả mạo đơn vị cung cấp, cơ quan BHXH hoặc tạo ấn tượng rằng kết quả tham khảo là quyết định chính thức.</li>
+        </ul>
+      </section>
+
+      <section id="ben-thu-ba" class="policy-section">
+        <h2>10. Dịch vụ và nền tảng của bên thứ ba</h2>
+        <p>Website sử dụng hoặc có thể tích hợp dịch vụ của Supabase, Vercel, payOS/VietQR, các model/API AI và nhà cung cấp đăng nhập xã hội như Google/Facebook. Việc sử dụng các chức năng đó có thể đồng thời chịu điều khoản và chính sách của nhà cung cấp tương ứng.</p>
+        <p>Đơn vị cung cấp sẽ lựa chọn và cấu hình các dịch vụ cần thiết cho hoạt động của website nhưng không kiểm soát tuyệt đối mọi sự cố, gián đoạn hoặc thay đổi phát sinh từ nền tảng bên thứ ba.</p>
+      </section>
+
+      <section id="so-huu" class="policy-section">
+        <h2>11. Quyền sở hữu trí tuệ</h2>
+        <p>Giao diện, nội dung hướng dẫn, cấu trúc chức năng và các thành phần do đơn vị cung cấp tự xây dựng được bảo vệ theo pháp luật áp dụng. Tên, nhãn hiệu, logo hoặc nội dung thuộc bên thứ ba vẫn thuộc quyền của chủ sở hữu tương ứng.</p>
+        <p>Việc sử dụng website không mặc nhiên chuyển giao cho người dùng quyền sở hữu đối với mã nguồn, thiết kế, nhãn hiệu hoặc tài sản trí tuệ khác của dịch vụ.</p>
+      </section>
+
+      <section id="gioi-han" class="policy-section">
+        <h2>12. Giới hạn trách nhiệm</h2>
+        <p>Trong phạm vi pháp luật cho phép, đơn vị cung cấp không chịu trách nhiệm cho thiệt hại phát sinh hoàn toàn từ dữ liệu sai/thiếu do người dùng cung cấp, việc người dùng không kiểm tra dữ liệu nhận diện, quyết định dựa duy nhất vào kết quả tham khảo, hoặc sự cố nằm ngoài khả năng kiểm soát hợp lý như gián đoạn mạng, ngân hàng, nhà cung cấp hạ tầng hay dịch vụ bên thứ ba.</p>
+        <p>Quy định này không loại trừ hoặc hạn chế trách nhiệm mà pháp luật bắt buộc đơn vị cung cấp phải chịu.</p>
+      </section>
+
+      <section id="tam-ngung" class="policy-section">
+        <h2>13. Tạm ngừng, hạn chế hoặc chấm dứt cung cấp</h2>
+        <p>Dịch vụ có thể tạm ngừng một phần hoặc toàn bộ để bảo trì, nâng cấp, xử lý sự cố an toàn hoặc tuân thủ yêu cầu pháp luật. Tài khoản có dấu hiệu gian lận, tấn công hệ thống, lạm dụng tài nguyên hoặc vi phạm nghiêm trọng Điều khoản có thể bị hạn chế chức năng trong thời gian xác minh.</p>
+      </section>
+
+      <section id="thay-doi" class="policy-section">
+        <h2>14. Thay đổi dịch vụ và điều khoản</h2>
+        <p>Tính năng, công thức, nhà cung cấp kỹ thuật, gói lượt hoặc Điều khoản có thể được cập nhật để phản ánh thay đổi pháp luật và hoạt động dịch vụ. Phiên bản mới của Điều khoản sẽ được công bố trên trang này và ghi ngày cập nhật.</p>
+        <p>Việc tiếp tục sử dụng dịch vụ sau khi phiên bản mới có hiệu lực thể hiện việc bạn chấp nhận điều khoản được cập nhật đối với quá trình sử dụng sau thời điểm đó, trừ trường hợp pháp luật yêu cầu hình thức chấp thuận khác.</p>
+      </section>
+
+      <section id="tranh-chap" class="policy-section">
+        <h2>15. Luật áp dụng và giải quyết phản ánh/tranh chấp</h2>
+        <p>Điều khoản này được điều chỉnh theo pháp luật Việt Nam. Khi có phản ánh hoặc tranh chấp, các bên ưu tiên trao đổi và đối soát thông tin thực tế để giải quyết. Nếu không thể giải quyết bằng trao đổi, các bên có quyền sử dụng cơ chế khiếu nại, cơ quan có thẩm quyền hoặc phương thức giải quyết tranh chấp theo quy định pháp luật.</p>
+      </section>
+
+      <section id="lien-he" class="policy-section policy-contact-section">
+        <h2>16. Đơn vị cung cấp và liên hệ</h2>
+        <div class="policy-contact-card">
+          <div><span>Đơn vị cung cấp</span><strong>Đức Minh</strong></div>
+          <div><span>Người liên hệ</span><strong>Đức Minh</strong></div>
+          <div><span>Điện thoại</span><strong><a href="tel:0383355188">0383355188</a></strong></div>
+          <div><span>Website</span><strong>tinhluonghuu-bhxh.vercel.app</strong></div>
+        </div>
+      </section>
+
+      <footer class="policy-footer-note">
+        <p>Xem thêm <a href="/privacy">Chính sách bảo mật</a> để biết cách dữ liệu cá nhân được xử lý và bảo vệ.</p>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>
