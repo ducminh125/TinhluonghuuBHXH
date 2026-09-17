@@ -80,12 +80,23 @@ function applyAdminGoogleAvailability(){
     if(hint){hint.hidden=config?.googleAuthChecked!==false;hint.textContent=config?.googleAuthChecked===false?'Không kiểm tra được trạng thái Google Provider. Nếu đăng nhập lỗi, hãy kiểm tra cấu hình Supabase.':'';}
   }
 }
+function applyAdminFacebookAvailability(){
+  const btn=$('adminFacebookBtn'),hint=$('adminFacebookAuthHint');if(!btn)return;
+  if(config?.facebookAuthEnabled!==true){
+    btn.disabled=true;btn.textContent='Facebook chưa được bật trong Supabase';
+    if(hint){hint.hidden=false;hint.textContent='Bật Authentication → Providers → Facebook trong Supabase nếu muốn dùng Facebook để đăng nhập.';}
+  }else{
+    btn.disabled=false;btn.textContent='Đăng nhập bằng Facebook';
+    if(hint){hint.hidden=true;hint.textContent='';}
+  }
+}
 
 async function authenticate(){
   await checkSystemStatus();
   config=await fetch('/api/config',{cache:'no-store'}).then(r=>r.json());
   if(!config.authEnabled)throw new Error('Chưa cấu hình Supabase. Xem README để bật hệ thống tài khoản.');
   applyAdminGoogleAvailability();
+  applyAdminFacebookAvailability();
   client=window.supabase.createClient(config.supabaseUrl,config.supabasePublishableKey);
   ({data:{session}}=await client.auth.getSession());
   client.auth.onAuthStateChange(async(_event,s)=>{session=s;if(session)await enter();else showLogin();});
@@ -105,6 +116,14 @@ async function googleLogin(){
   const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+'/admin'}});
   if(error){
     const text=/provider.*(disabled|not enabled)|unsupported provider/i.test(error.message||'')?'Google Provider chưa được bật trong Supabase.':error.message;
+    msg('adminAuthMessage','error',text);
+  }
+}
+async function facebookLogin(){
+  if(config?.facebookAuthEnabled!==true)return msg('adminAuthMessage','error','Facebook Provider chưa được bật trong Supabase.');
+  const {error}=await client.auth.signInWithOAuth({provider:'facebook',options:{redirectTo:location.origin+'/admin'}});
+  if(error){
+    const text=/provider.*(disabled|not enabled)|unsupported provider/i.test(error.message||'')?'Facebook Provider chưa được bật trong Supabase.':error.message;
     msg('adminAuthMessage','error',text);
   }
 }
@@ -198,6 +217,7 @@ async function refreshAll(){
 $('confirmPayosWebhookBtn')?.addEventListener('click',confirmPayos);
 $('adminLoginBtn')?.addEventListener('click',emailLogin);
 $('adminGoogleBtn')?.addEventListener('click',googleLogin);
+$('adminFacebookBtn')?.addEventListener('click',facebookLogin);
 $('adminLogoutBtn')?.addEventListener('click',async()=>{if(client)await client.auth.signOut();location.href='/';});
 $('refreshUsersBtn')?.addEventListener('click',loadUsers);
 $('userSearchBtn')?.addEventListener('click',runUserSearch);

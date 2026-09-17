@@ -149,7 +149,7 @@ async function mapLimit(items, limit, worker) {
 }
 
 function buildAiTasks(aiItems) {
-  const imageBatchSize = Math.max(1, Math.min(6, Number(process.env.AI_IMAGE_BATCH_SIZE || 4)));
+  const imageBatchSize = Math.max(1, Math.min(3, Number(process.env.AI_IMAGE_BATCH_SIZE || 2)));
   const tasks = [];
   const textOnly = [];
   const imagePool = [];
@@ -210,14 +210,17 @@ app.get('/api/config',async(_req,res)=>{
   const authProviders=await getPublicAuthProviderSettings();
   res.json({
     authEnabled:Boolean(supabaseConfigured&&supa.publishableKey),supabaseUrl:supa.url,supabasePublishableKey:supa.publishableKey,
-    googleAuthEnabled:authProviders.google,googleAuthChecked:authProviders.checked,
+    googleAuthEnabled:authProviders.google,facebookAuthEnabled:authProviders.facebook,
+    githubAuthEnabled:authProviders.github,azureAuthEnabled:authProviders.azure,
+    socialAuthProviders:{google:authProviders.google,facebook:authProviders.facebook,github:authProviders.github,azure:authProviders.azure},
+    socialAuthChecked:authProviders.checked,googleAuthChecked:authProviders.checked,
     freeQuota:{direct:3,file:0,history:3},bank:bankConfig(),payment:{provider:'payos',configured:payosConfigured},
     maxDirectUploadBytes:process.env.VERCEL==='1'?4*1024*1024:MAX_TOTAL_UPLOAD
   });
 });
 app.get('/api/health',async(_req,res)=>{
   const authProviders=await getPublicAuthProviderSettings();
-  res.json({ok:true,version:'3.12.0',authConfigured:supabaseConfigured,googleAuthEnabled:authProviders.google,aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'});
+  res.json({ok:true,version:'3.13.0',authConfigured:supabaseConfigured,googleAuthEnabled:authProviders.google,facebookAuthEnabled:authProviders.facebook,socialAuthProviders:{google:authProviders.google,facebook:authProviders.facebook,github:authProviders.github,azure:authProviders.azure},aiConfigured:Boolean(process.env.SHOPAIKEY_API_KEY),paymentConfigured:payosConfigured,fastModel:process.env.SHOPAIKEY_FAST_MODEL||'gemini-2.5-flash',visionFallbackModel:process.env.SHOPAIKEY_VISION_FALLBACK_MODEL||'gemini-2.5-pro',fallbackModel:process.env.SHOPAIKEY_FALLBACK_MODEL||'gpt-5.6-luna'});
 });
 app.get('/api/system/status',async(_req,res)=>{
   try{res.json(await databaseStatus());}
@@ -485,12 +488,13 @@ function publicImportError(error){
   if(/API key|chưa cấu hình/i.test(raw))return {status:503,code:'AI_NOT_CONFIGURED',message:'Dịch vụ đọc hồ sơ chưa được cấu hình đầy đủ. Lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
   if(/HTTP 401|HTTP 403|unauthorized|forbidden|invalid.*key/i.test(raw))return {status:502,code:'AI_AUTH_FAILED',message:'Dịch vụ đọc hồ sơ từ chối xác thực. Quản trị viên cần kiểm tra API key. Lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
   if(/HTTP 429|rate limit|too many requests/i.test(raw))return {status:503,code:'AI_RATE_LIMIT',message:'Dịch vụ đọc hồ sơ đang quá tải. Vui lòng thử lại sau; lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
+  if(error?.code==='AI_EXTRACTION_FAILED'||/AI_EXTRACTION_FAILED|Gemini HTTP 5\d\d|fetch failed|ECONNRESET|ENOTFOUND|socket/i.test(raw))return {status:502,code:'AI_EXTRACTION_FAILED',message:'Dịch vụ nhận diện ảnh chưa xử lý được hồ sơ này. Hãy thử lại với ảnh rõ hơn hoặc thử lại sau. Lượt nhập bằng file/ảnh tự động không bị mất.'};
   return {status:400,code:error?.code||'IMPORT_FAILED',message:raw||'Không thể xử lý tệp. Lượt nhập bằng file/ảnh tự động sẽ được tự động hoàn lại.'};
 }
 
 app.post('/api/import',requireUser,runImportUpload,async(req,res)=>{
   const start=Date.now(); let creditConsumed=false; let jobId=null; let refund=null;
-  const errorId=crypto.randomUUID();
+  const errorId=crypto.randomUUID().slice(0,8);
   try{
     const files=[...(req.files?.files||[]),...(req.files?.file||[])];
     if(!files.length)return res.status(400).json({code:'NO_FILE',error:'Chưa nhận được tệp tải lên.',charged:false,refunded:false});
@@ -543,10 +547,15 @@ app.post('/api/import',requireUser,runImportUpload,async(req,res)=>{
     console.error(`[api/import ${errorId}]`,error);
     const publicError=publicImportError(error);
     if(jobId){
-      await supabaseAdmin.from('import_jobs').update({
-        status:'failed',latency_ms:Date.now()-start,
-        meta:{errorId,code:publicError.code,error:error?.message||String(error)},updated_at:new Date().toISOString()
-      }).eq('id',jobId).catch(()=>{});
+      try{
+        const {error:markFailedError}=await supabaseAdmin.from('import_jobs').update({
+          status:'failed',latency_ms:Date.now()-start,
+          meta:{errorId,code:publicError.code,error:String(error?.message||error||'').slice(0,1800)},updated_at:new Date().toISOString()
+        }).eq('id',jobId);
+        if(markFailedError)console.error(`[api/import ${errorId}] could not mark import job failed`,markFailedError);
+      }catch(markFailedError){
+        console.error(`[api/import ${errorId}] could not mark import job failed`,markFailedError);
+      }
     }
     if(creditConsumed&&jobId){
       try{refund=await refundImportCreditOnce(req.user.id,jobId,error?.message||publicError.code);}
@@ -862,5 +871,5 @@ app.use((error,req,res,next)=>{
 });
 
 app.use((_req,res)=>res.sendFile(path.join(rootDir,'index.html')));
-if(process.env.VERCEL!=='1')app.listen(port,()=>console.log(`VN Social Insurance Benefits Calculator v3.8: http://localhost:${port}`));
+if(process.env.VERCEL!=='1')app.listen(port,()=>console.log(`VN Social Insurance Benefits Calculator v3.13: http://localhost:${port}`));
 export default app;

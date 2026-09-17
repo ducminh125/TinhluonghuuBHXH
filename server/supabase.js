@@ -35,7 +35,8 @@ let authSettingsCache = { at: 0, value: null };
 
 export async function getPublicAuthProviderSettings({ maxAgeMs = 60000 } = {}) {
   const cfg = publicSupabaseConfig();
-  if (!cfg.url || !cfg.publishableKey) return { checked: false, google: null };
+  const empty = { checked: false, google: null, facebook: null, github: null, azure: null };
+  if (!cfg.url || !cfg.publishableKey) return empty;
   const now = Date.now();
   if (authSettingsCache.value && now - authSettingsCache.at < maxAgeMs) return authSettingsCache.value;
   try {
@@ -48,11 +49,18 @@ export async function getPublicAuthProviderSettings({ maxAgeMs = 60000 } = {}) {
     clearTimeout(timer);
     if (!response.ok) throw new Error(`AUTH_SETTINGS_HTTP_${response.status}`);
     const data = await response.json();
-    const value = { checked: true, google: data?.external?.google === true };
+    const external = data?.external || {};
+    const value = {
+      checked: true,
+      google: external.google === true,
+      facebook: external.facebook === true,
+      github: external.github === true,
+      azure: external.azure === true
+    };
     authSettingsCache = { at: now, value };
     return value;
   } catch (error) {
-    const value = { checked: false, google: null, error: String(error?.message || error || 'AUTH_SETTINGS_FAILED') };
+    const value = { ...empty, error: String(error?.message || error || 'AUTH_SETTINGS_FAILED') };
     authSettingsCache = { at: now, value };
     return value;
   }

@@ -115,19 +115,34 @@ function applyGoogleAuthAvailability(){
     }
   }
 }
-async function signInGoogle(){
-  if(config?.googleAuthEnabled!==true){
-    setMessage('authMessage','error','Đăng nhập Google hiện chưa khả dụng. Vui lòng dùng email và mật khẩu.');
+function applyFacebookAuthAvailability(){
+  const btn=$('facebookLoginBtn'),hint=$('facebookAuthHint');
+  if(!btn)return;
+  if(config?.facebookAuthEnabled!==true){
+    btn.disabled=true;
+    btn.textContent='Facebook hiện chưa khả dụng';
+    if(hint){hint.hidden=false;hint.textContent='Đăng nhập Facebook chưa được bật. Bạn vẫn có thể dùng email hoặc Google.';}
+  }else{
+    btn.disabled=false;btn.textContent='Tiếp tục bằng Facebook';
+    if(hint){hint.hidden=true;hint.textContent='';}
+  }
+}
+async function signInSocial(provider,label){
+  const enabled=provider==='google'?config?.googleAuthEnabled:provider==='facebook'?config?.facebookAuthEnabled:false;
+  if(enabled!==true){
+    setMessage('authMessage','error',`Đăng nhập ${label} hiện chưa khả dụng. Vui lòng dùng email và mật khẩu.`);
     return;
   }
-  const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:`${location.origin}/?login=google`}});
+  const {error}=await client.auth.signInWithOAuth({provider,options:{redirectTo:`${location.origin}/`}});
   if(error){
     const message=/provider.*(disabled|not enabled)|unsupported provider/i.test(error.message||'')
-      ? 'Đăng nhập Google hiện chưa khả dụng. Vui lòng dùng email và mật khẩu.'
+      ? `Đăng nhập ${label} hiện chưa khả dụng. Vui lòng dùng email và mật khẩu.`
       : error.message;
     setMessage('authMessage','error',message);
   }
 }
+async function signInGoogle(){return signInSocial('google','Google');}
+async function signInFacebook(){return signInSocial('facebook','Facebook');}
 async function signOut(){if(client)await client.auth.signOut();session=null;me=null;accountError='';renderAccount();renderWalletDetail();closeAccount();}
 
 async function loadPlans(){
@@ -411,6 +426,7 @@ async function handlePaymentReturn(){
 async function init(){
   config=await fetch('/api/config').then(r=>r.json()).catch(()=>({authEnabled:false}));
   applyGoogleAuthAvailability();
+  applyFacebookAuthAvailability();
   if(config.authEnabled && window.supabase?.createClient){
     client=window.supabase.createClient(config.supabaseUrl,config.supabasePublishableKey,{auth:{persistSession:true,detectSessionInUrl:true}});
     await refreshSession();
@@ -422,7 +438,7 @@ async function init(){
   $('copyPaymentAccount')?.addEventListener('click',async()=>{if(await copyText($('paymentAccount')?.textContent||''))setMessage('paymentMessage','success','Đã sao chép số tài khoản.');});
   $('copyPaymentAmount')?.addEventListener('click',async()=>{if(await copyText($('paymentAmount')?.dataset.copy||''))setMessage('paymentMessage','success','Đã sao chép số tiền.');});
   $('copyPaymentCode')?.addEventListener('click',async()=>{if(await copyText($('paymentCode')?.textContent||''))setMessage('paymentMessage','success','Đã sao chép nội dung chuyển khoản.');});
-  $('emailLoginBtn')?.addEventListener('click',signInEmail);$('emailSignupBtn')?.addEventListener('click',signUpEmail);$('googleLoginBtn')?.addEventListener('click',signInGoogle);
+  $('emailLoginBtn')?.addEventListener('click',signInEmail);$('emailSignupBtn')?.addEventListener('click',signUpEmail);$('googleLoginBtn')?.addEventListener('click',signInGoogle);$('facebookLoginBtn')?.addEventListener('click',signInFacebook);
   $('buyCreditsBtn')?.addEventListener('click',openPlans);
   await handlePaymentReturn();
 }

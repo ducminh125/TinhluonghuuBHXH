@@ -1,4 +1,4 @@
-# VN Social Insurance Benefits Calculator v3.12
+# VN Social Insurance Benefits Calculator v3.13
 
 Web thương mại hóa để **ước tính 4 nhóm quyền lợi**:
 - lương hưu;
@@ -10,6 +10,18 @@ Hệ thống dùng Supabase cho tài khoản/database, payOS cho VietQR + webhoo
 
 > Kết quả là tham khảo/mô phỏng. Kết quả chính thức phụ thuộc dữ liệu cơ quan BHXH, hồ sơ thực tế và văn bản có hiệu lực tại thời điểm giải quyết.
 
+
+
+## Mới trong v3.13 — sửa đọc ảnh, mặc định BHXH một lần, Google/Facebook OAuth
+
+- Sửa lỗi nhánh cleanup của `/api/import` có thể che lỗi AI thật và làm frontend chỉ nhận `INTERNAL_ERROR`.
+- Vision: Gemini 2.5 Flash → Gemini 2.5 Pro native fallback → fallback tổng quát; batch ảnh mặc định 2.
+- Lý do BHXH một lần `Có thời gian đóng trước 01/07/2025, sau 12 tháng không tiếp tục đóng và chưa đủ 20 năm` được đưa lên đầu và chọn mặc định.
+- Bổ sung Facebook OAuth bên cạnh Google cho người dùng và admin; provider chưa bật sẽ tự khóa nút.
+- `/api/health` trả `version: 3.13.0`, `facebookAuthEnabled` và `socialAuthProviders`.
+- Không có migration database mới.
+
+Xem `SOCIAL-LOGIN-SETUP.md` để cấu hình Google/Facebook.
 
 ## Mới trong v3.12 — làm rõ điều kiện thai sản theo đúng trường hợp
 
@@ -148,13 +160,14 @@ Webhook/polling đều dùng cơ chế idempotent để không cộng lượt ha
 
 - Excel BHXH có cấu trúc → parser trực tiếp, không dùng AI.
 - Ảnh/PDF scan → Gemini Flash tuyến nhanh.
-- Fallback → GPT-5.6 Luna.
+- Ảnh/PDF scan: Gemini 2.5 Flash → Gemini 2.5 Pro native vision fallback → fallback tổng quát.
 - File lỗi/timeout không làm mất lượt; nếu lỗi kỹ thuật xảy ra sau charge thì backend hoàn lượt.
 
 Mặc định:
 
 ```env
 SHOPAIKEY_FAST_MODEL=gemini-2.5-flash
+SHOPAIKEY_VISION_FALLBACK_MODEL=gemini-2.5-pro
 SHOPAIKEY_FALLBACK_MODEL=gpt-5.6-luna
 ```
 
@@ -164,10 +177,12 @@ SHOPAIKEY_FALLBACK_MODEL=gpt-5.6-luna
 SHOPAIKEY_API_KEY=...
 SHOPAIKEY_BASE_URL=https://api.shopaikey.com/v1
 SHOPAIKEY_FAST_MODEL=gemini-2.5-flash
+SHOPAIKEY_VISION_FALLBACK_MODEL=gemini-2.5-pro
 SHOPAIKEY_FALLBACK_MODEL=gpt-5.6-luna
 AI_FAST_TIMEOUT_MS=45000
+AI_VISION_FALLBACK_TIMEOUT_MS=35000
 AI_FALLBACK_TIMEOUT_MS=45000
-AI_IMAGE_BATCH_SIZE=4
+AI_IMAGE_BATCH_SIZE=2
 AI_BATCH_CONCURRENCY=2
 
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
@@ -215,7 +230,7 @@ Khuyến nghị:
 - payOS: QR/webhook;
 - ShopAIKey: AI gateway.
 
-Xem `DEPLOY-V3.11.md`.
+Xem `DEPLOY-V3.13.md`.
 
 ## 11. Kiểm thử
 

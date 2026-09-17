@@ -118,7 +118,12 @@ async function callGemini({apiKey,model,text,images,filename,sourceCount,timeout
       signal:controller.signal
     });
     const body=await response.json().catch(()=>({}));
-    if(!response.ok) throw new Error(body?.error?.message || `Gemini HTTP ${response.status}`);
+    if(!response.ok){
+      const error=new Error(body?.error?.message || `Gemini HTTP ${response.status}`);
+      error.status=response.status;
+      error.code=response.status===401||response.status===403?'AI_AUTH_FAILED':response.status===429?'AI_RATE_LIMIT':'AI_UPSTREAM_ERROR';
+      throw error;
+    }
     const raw=(body.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('');
     return {raw,usage:body.usageMetadata||null,provider:'gemini'};
   } finally { clearTimeout(timer); }
@@ -176,29 +181,65 @@ export async function extractBhxhWithAI({text,images=[],filename='hồ sơ',pars
   if(!apiKey)throw new Error('Server chưa cấu hình API key trích xuất hồ sơ.');
 
   const fastModel=process.env.SHOPAIKEY_FAST_MODEL || 'gemini-2.5-flash';
+  const visionFallbackModel=process.env.SHOPAIKEY_VISION_FALLBACK_MODEL || 'gemini-2.5-pro';
   const fallbackModel=process.env.SHOPAIKEY_FALLBACK_MODEL || 'gpt-5.6-luna';
   const fastTimeout=Number(process.env.AI_FAST_TIMEOUT_MS || 45000);
+  const visionFallbackTimeout=Number(process.env.AI_VISION_FALLBACK_TIMEOUT_MS || 35000);
   const fallbackTimeout=Number(process.env.AI_FALLBACK_TIMEOUT_MS || 45000);
   const started=Date.now();
   const attempts=[];
-  let result;
+  const failures=[];
+
+  const rememberFailure=(model,error)=>{
+    const message=String(error?.message||error||'UNKNOWN_AI_ERROR').replace(/\s+/g,' ').slice(0,500);
+    failures.push(`${model}: ${message}`);
+    console.warn(`[AI extraction ${model}]`,message);
+  };
+  const failFastForCredentials=error=>{
+    if(error?.status===401||error?.status===403||error?.code==='AI_AUTH_FAILED'){
+      const e=new Error(error?.message||'Dịch vụ AI từ chối xác thực.');
+      e.code='AI_AUTH_FAILED';e.status=502;throw e;
+    }
+  };
 
   try{
     attempts.push(fastModel);
-    result=await callGemini({apiKey,model:fastModel,text,images,filename,sourceCount,timeoutMs:fastTimeout});
-    // Validate JSON before accepting the fast path; malformed output falls back.
+    const result=await callGemini({apiKey,model:fastModel,text,images,filename,sourceCount,timeoutMs:fastTimeout});
     JSON.parse(stripJsonFence(result.raw));
     return finalizeExtraction(result.raw,{model:fastModel,provider:result.provider,parserWarnings,sourceCount,latencyMs:Date.now()-started,usage:result.usage,attempts});
   }catch(error){
-    console.warn('[AI fast extraction]', error?.message || error);
+    failFastForCredentials(error);
+    rememberFailure(fastModel,error);
   }
 
-  try{
-    attempts.push(fallbackModel);
-    result=await callOpenAICompatible({apiKey,model:fallbackModel,text,images,filename,sourceCount,timeoutMs:fallbackTimeout});
-    return finalizeExtraction(result.raw,{model:fallbackModel,provider:result.provider,parserWarnings,sourceCount,latencyMs:Date.now()-started,usage:result.usage,attempts});
-  }catch(error){
-    const message=error?.name==='AbortError'?'hết thời gian xử lý':(error?.message||String(error));
-    throw new Error(`Không thể trích xuất hồ sơ bằng luồng nhanh. ${message}`);
+  // Images get a second native Gemini attempt. This keeps vision fallback on a model
+  // explicitly documented for image/base64 input instead of relying only on an OpenAI-compatible fallback.
+  if(images.length && visionFallbackModel && !attempts.includes(visionFallbackModel)){
+    try{
+      attempts.push(visionFallbackModel);
+      const result=await callGemini({apiKey,model:visionFallbackModel,text,images,filename,sourceCount,timeoutMs:visionFallbackTimeout});
+      return finalizeExtraction(result.raw,{model:visionFallbackModel,provider:result.provider,parserWarnings,sourceCount,latencyMs:Date.now()-started,usage:result.usage,attempts});
+    }catch(error){
+      failFastForCredentials(error);
+      rememberFailure(visionFallbackModel,error);
+    }
   }
+
+  if(fallbackModel && !attempts.includes(fallbackModel)){
+    try{
+      attempts.push(fallbackModel);
+      const result=String(fallbackModel).toLowerCase().startsWith('gemini-')
+        ? await callGemini({apiKey,model:fallbackModel,text,images,filename,sourceCount,timeoutMs:fallbackTimeout})
+        : await callOpenAICompatible({apiKey,model:fallbackModel,text,images,filename,sourceCount,timeoutMs:fallbackTimeout});
+      return finalizeExtraction(result.raw,{model:fallbackModel,provider:result.provider,parserWarnings,sourceCount,latencyMs:Date.now()-started,usage:result.usage,attempts});
+    }catch(error){
+      failFastForCredentials(error);
+      rememberFailure(fallbackModel,error);
+    }
+  }
+
+  const error=new Error(`AI_EXTRACTION_FAILED | ${failures.join(' | ') || 'Không có mô hình nào trả về dữ liệu hợp lệ.'}`);
+  error.code='AI_EXTRACTION_FAILED';
+  throw error;
 }
+
